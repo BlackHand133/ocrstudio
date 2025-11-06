@@ -1,0 +1,50 @@
+# config/config.yaml
+# Simple Configuration - Based on test.py
+
+# ===== Default Profile =====
+# เปลี่ยนตรงนี้เพื่อสลับ CPU/GPU
+# Options: "cpu", "gpu"
+default_profile: "cpu"
+
+# ===== Profiles =====
+profiles:
+  # CPU Profile (เหมือน test.py - แนะนำ)
+  cpu:
+    # Device settings
+    device:
+      type: "cpu"
+    
+    # PaddleOCR settings (เหมือน test.py ทุกประการ)
+    paddleocr:
+      lang: "th"
+      use_doc_orientation_classify: false
+      use_doc_unwarping: false
+      use_textline_orientation: false
+      device: "cpu"
+      # Detection parameters
+      det_db_box_thresh: 0.7
+      det_db_unclip_ratio: 1.5
+  
+  # GPU Profile (สำหรับความเร็ว)
+  gpu:
+    # Device settings
+    device:
+      type: "gpu"
+      gpu_id: 0
+      gpu_mem: 8000
+    
+    # PaddleOCR settings
+    paddleocr:
+      lang: "th"
+      use_doc_orientation_classify: false
+      use_doc_unwarping: false
+      use_textline_orientation: true
+      device: "gpu"
+      # Detection parameters
+      det_db_box_thresh: 0.7
+      det_db_unclip_ratio: 1.5
+
+# ===== Application Settings =====
+app:
+  auto_save: true
+  cache_annotations: true

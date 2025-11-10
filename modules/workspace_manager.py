@@ -158,24 +158,76 @@ class WorkspaceManager:
     def load_workspace(self, workspace_id: str) -> Optional[Dict]:
         """
         โหลด workspace
-        
+
         Returns:
             workspace data หรือ None
         """
         try:
             workspace_path = os.path.join(self.workspaces_dir, workspace_id)
             workspace_file = os.path.join(workspace_path, "workspace.json")
-            
+
             if not os.path.exists(workspace_file):
                 logger.error(f"Workspace not found: {workspace_id}")
                 return None
-            
+
             with open(workspace_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        
+                workspace_data = json.load(f)
+
+            # ตรวจสอบและซ่อมแซม version list
+            workspace_data = self._validate_and_repair_workspace(workspace_id, workspace_data)
+
+            return workspace_data
+
         except Exception as e:
             logger.error(f"Failed to load workspace: {e}")
             return None
+
+    def _validate_and_repair_workspace(self, workspace_id: str, workspace_data: Dict) -> Dict:
+        """
+        ตรวจสอบและซ่อมแซม workspace data
+        - ตรวจสอบว่า version ที่อยู่ใน available list มีไฟล์จริงหรือไม่
+        - ลบ version ที่ไม่มีไฟล์ออกจาก list
+        - ตรวจสอบ current version ว่ายังมีอยู่หรือไม่
+        """
+        try:
+            workspace_path = os.path.join(self.workspaces_dir, workspace_id)
+            available_versions = workspace_data.get("versions", {}).get("available", [])
+            current_version = workspace_data.get("versions", {}).get("current", "v1")
+
+            # ตรวจสอบว่า version ไหนมีไฟล์จริง
+            valid_versions = []
+            for version in available_versions:
+                version_file = os.path.join(workspace_path, f"{version}.json")
+                if os.path.exists(version_file):
+                    valid_versions.append(version)
+                else:
+                    logger.warning(f"Version file not found: {version}.json - removing from list")
+
+            # ถ้ามีการเปลี่ยนแปลง ให้อัพเดต
+            if valid_versions != available_versions:
+                workspace_data["versions"]["available"] = valid_versions
+
+                # ตรวจสอบ current version
+                if current_version not in valid_versions:
+                    if valid_versions:
+                        # เปลี่ยน current เป็น version แรกที่มีอยู่
+                        workspace_data["versions"]["current"] = valid_versions[0]
+                        logger.warning(f"Current version {current_version} not found, changed to {valid_versions[0]}")
+                    else:
+                        logger.error(f"No valid versions found in workspace {workspace_id}")
+
+                # บันทึกการเปลี่ยนแปลง
+                workspace_file = os.path.join(workspace_path, "workspace.json")
+                with open(workspace_file, 'w', encoding='utf-8') as f:
+                    json.dump(workspace_data, f, ensure_ascii=False, indent=2)
+
+                logger.info(f"Repaired workspace {workspace_id}: removed {len(available_versions) - len(valid_versions)} invalid version(s)")
+
+            return workspace_data
+
+        except Exception as e:
+            logger.error(f"Failed to validate workspace: {e}")
+            return workspace_data
     
     def save_workspace(self, workspace_id: str, data: Dict) -> bool:
         """บันทึก workspace metadata"""
@@ -198,17 +250,81 @@ class WorkspaceManager:
         """ลบ workspace"""
         try:
             workspace_path = os.path.join(self.workspaces_dir, workspace_id)
-            
+
             if os.path.exists(workspace_path):
                 shutil.rmtree(workspace_path)
                 logger.info(f"Deleted workspace: {workspace_id}")
                 return True
-            
+
             return False
-        
+
         except Exception as e:
             logger.error(f"Failed to delete workspace: {e}")
             return False
+
+    def repair_workspace(self, workspace_id: str) -> Tuple[bool, str]:
+        """
+        ซ่อมแซม workspace โดยตรวจสอบและแก้ไขข้อมูลที่ไม่ตรงกัน
+
+        Returns:
+            (success: bool, message: str)
+        """
+        try:
+            workspace_data = self.load_workspace(workspace_id)
+            if not workspace_data:
+                return False, "Workspace not found"
+
+            workspace_path = os.path.join(self.workspaces_dir, workspace_id)
+
+            # หา version files ที่มีจริง
+            actual_version_files = []
+            for file in os.listdir(workspace_path):
+                if file.startswith('v') and file.endswith('.json'):
+                    version_name = file[:-5]  # ตัด .json
+                    actual_version_files.append(version_name)
+
+            # เรียงตาม version number
+            actual_version_files.sort(key=lambda v: int(v[1:]) if v[1:].isdigit() else 0)
+
+            # เปรียบเทียบกับ available list
+            available_versions = workspace_data.get("versions", {}).get("available", [])
+            current_version = workspace_data.get("versions", {}).get("current", "v1")
+
+            removed_versions = [v for v in available_versions if v not in actual_version_files]
+            missing_versions = [v for v in actual_version_files if v not in available_versions]
+
+            changes = []
+
+            # อัพเดต available list
+            if actual_version_files != available_versions:
+                workspace_data["versions"]["available"] = actual_version_files
+                changes.append(f"Updated available versions: {actual_version_files}")
+
+            # ตรวจสอบ current version
+            if current_version not in actual_version_files:
+                if actual_version_files:
+                    workspace_data["versions"]["current"] = actual_version_files[0]
+                    changes.append(f"Changed current version from '{current_version}' to '{actual_version_files[0]}'")
+                else:
+                    return False, "No valid version files found"
+
+            # บันทึก
+            if changes:
+                self.save_workspace(workspace_id, workspace_data)
+                message = "Workspace repaired:\n"
+                if removed_versions:
+                    message += f"  - Removed invalid versions: {', '.join(removed_versions)}\n"
+                if missing_versions:
+                    message += f"  - Added missing versions: {', '.join(missing_versions)}\n"
+                message += f"\n".join(f"  - {change}" for change in changes)
+                return True, message
+            else:
+                return True, "Workspace is already valid, no repairs needed"
+
+        except Exception as e:
+            error_msg = f"Failed to repair workspace: {e}"
+            logger.error(error_msg)
+            return False, error_msg
     
     # ===== Version Management =====
     
@@ -330,17 +446,163 @@ class WorkspaceManager:
             workspace_data = self.load_workspace(workspace_id)
             if not workspace_data:
                 return False
-            
+
             if version not in workspace_data["versions"]["available"]:
                 logger.error(f"Version {version} not found")
                 return False
-            
+
             workspace_data["versions"]["current"] = version
             return self.save_workspace(workspace_id, workspace_data)
-        
+
         except Exception as e:
             logger.error(f"Failed to switch version: {e}")
             return False
+
+    def delete_version(self, workspace_id: str, version: str) -> Tuple[bool, str]:
+        """
+        ลบ version
+
+        Args:
+            workspace_id: workspace id
+            version: version ที่จะลบ เช่น "v2"
+
+        Returns:
+            (success: bool, message: str)
+        """
+        try:
+            # ตรวจสอบว่า workspace มีอยู่
+            workspace_data = self.load_workspace(workspace_id)
+            if not workspace_data:
+                return False, "Workspace not found"
+
+            # ตรวจสอบว่า version มีอยู่
+            available_versions = workspace_data["versions"]["available"]
+            if version not in available_versions:
+                return False, f"Version {version} not found"
+
+            # ป้องกันการลบ version สุดท้าย
+            if len(available_versions) == 1:
+                return False, "Cannot delete the last version. At least one version must remain."
+
+            # ป้องกันการลบ version ที่กำลังใช้งาน
+            current_version = workspace_data["versions"]["current"]
+            if version == current_version:
+                return False, f"Cannot delete the current version ({version}). Please switch to another version first."
+
+            # ลบไฟล์ version
+            workspace_path = os.path.join(self.workspaces_dir, workspace_id)
+            version_file = os.path.join(workspace_path, f"{version}.json")
+
+            if os.path.exists(version_file):
+                os.remove(version_file)
+                logger.info(f"Deleted version file: {version_file}")
+
+            # อัปเดต workspace.json
+            available_versions.remove(version)
+            workspace_data["versions"]["available"] = available_versions
+            self.save_workspace(workspace_id, workspace_data)
+
+            logger.info(f"Deleted version: {version} from workspace: {workspace_id}")
+            return True, f"Version {version} deleted successfully"
+
+        except Exception as e:
+            error_msg = f"Failed to delete version: {e}"
+            logger.error(error_msg)
+            return False, error_msg
+
+    def get_version_list(self, workspace_id: str) -> List[Dict]:
+        """
+        ดึงรายการ version ทั้งหมดใน workspace
+
+        Returns:
+            List of version info dicts
+        """
+        versions = []
+
+        try:
+            workspace_data = self.load_workspace(workspace_id)
+            if not workspace_data:
+                return versions
+
+            current_version = workspace_data["versions"]["current"]
+            available_versions = workspace_data["versions"]["available"]
+
+            for version in available_versions:
+                version_data = self.load_version(workspace_id, version)
+                if version_data:
+                    versions.append({
+                        "version": version,
+                        "description": version_data.get("description", ""),
+                        "created_at": version_data.get("created_at", ""),
+                        "modified_at": version_data.get("modified_at", ""),
+                        "is_current": version == current_version,
+                        "metadata": version_data.get("metadata", {})
+                    })
+
+        except Exception as e:
+            logger.error(f"Failed to get version list: {e}")
+
+        return versions
+
+    def rename_workspace(self, workspace_id: str, new_name: str) -> Tuple[bool, str]:
+        """
+        เปลี่ยนชื่อ workspace (เปลี่ยนเฉพาะชื่อที่แสดง ไม่เปลี่ยน workspace_id)
+
+        Args:
+            workspace_id: workspace id
+            new_name: ชื่อใหม่
+
+        Returns:
+            (success: bool, message: str)
+        """
+        try:
+            # ตรวจสอบว่าชื่อใหม่ไม่ว่าง
+            if not new_name or not new_name.strip():
+                return False, "Workspace name cannot be empty"
+
+            new_name = new_name.strip()
+
+            # โหลด workspace data
+            workspace_data = self.load_workspace(workspace_id)
+            if not workspace_data:
+                return False, "Workspace not found"
+
+            # อัปเดตชื่อ
+            old_name = workspace_data["workspace"]["name"]
+            workspace_data["workspace"]["name"] = new_name
+
+            # บันทึก
+            if self.save_workspace(workspace_id, workspace_data):
+                logger.info(f"Renamed workspace {workspace_id}: '{old_name}' -> '{new_name}'")
+
+                # อัปเดต recent_workspaces ถ้ามี
+                self._update_recent_workspace_name(workspace_id, new_name)
+
+                return True, f"Workspace renamed to '{new_name}' successfully"
+            else:
+                return False, "Failed to save workspace"
+
+        except Exception as e:
+            error_msg = f"Failed to rename workspace: {e}"
+            logger.error(error_msg)
+            return False, error_msg
+
+    def _update_recent_workspace_name(self, workspace_id: str, new_name: str):
+        """อัปเดตชื่อใน recent_workspaces.json"""
+        try:
+            workspaces = self.recent_workspaces.get("workspaces", [])
+
+            for workspace in workspaces:
+                if workspace.get("id") == workspace_id:
+                    workspace["name"] = new_name
+
+            self.recent_workspaces["workspaces"] = workspaces
+
+            with open(self.recent_workspaces_path, 'w', encoding='utf-8') as f:
+                json.dump(self.recent_workspaces, f, ensure_ascii=False, indent=2)
+
+        except Exception as e:
+            logger.error(f"Failed to update recent workspace name: {e}")
     
     # ===== App Config =====
     

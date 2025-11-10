@@ -8,7 +8,7 @@ import numpy as np
 from PIL import Image
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
-from modules.utils import handle_exceptions, imread_unicode, imwrite_unicode, sanitize_annotations
+from modules.utils import handle_exceptions, imread_unicode, imwrite_unicode, sanitize_annotations, sanitize_filename
 from modules.data_splitter import DataSplitter
 from modules.gui.split_config_dialog import SplitConfigDialog
 from modules.augmentation import AugmentationPipeline
@@ -261,101 +261,91 @@ class ExportHandler:
     
     def _select_best_orientation(self, img, auto_orient=True):
         """
-        Select best orientation for text with LTR assumption
-        
-        CRITICAL FIX: Force portrait → landscape conversion
-        
-        1. Check if portrait (H > W) → rotate to landscape
-        2. Try all angles (0, 90, 180, 270) and calculate horizontal projection std
-        3. Select angle with highest score
-        4. Use ML model to detect upside-down and flip 180° if needed
-        
+        Select best orientation for text with LTR assumption using ML-first approach
+
+        NEW APPROACH: ML-based orientation detection
+
+        1. Check if portrait (H > W) → rotate to landscape (90° or 270°)
+           - Try both 90° and 270°, use ML to pick the right one
+        2. Use ML model to detect if upside-down, flip 180° if needed
+
+        This is simpler and more reliable than heuristic-based approach.
+
         Args:
             img: numpy array of image (BGR format)
             auto_orient: if True, perform auto orientation
-            
+
         Returns:
             tuple: (oriented_img, final_angle)
         """
         if not auto_orient or img is None:
             return img, 0
-        
+
         h, w = img.shape[:2]
         if min(h, w) < 20:
             return img, 0
-        
-        rot_dict = {
-            0: lambda x: x,
-            90: lambda x: cv2.rotate(x, cv2.ROTATE_90_COUNTERCLOCKWISE),
-            180: lambda x: cv2.rotate(x, cv2.ROTATE_180),
-            270: lambda x: cv2.rotate(x, cv2.ROTATE_90_CLOCKWISE),
-        }
-        
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if len(img.shape) == 3 else img.copy()
-        
-        # CRITICAL FIX: Force portrait to landscape
-        # If portrait (height > width), only try 90° and 270° rotations
+
+        # Check if portrait
         is_portrait = h > w * 1.1  # 10% threshold to avoid false positives
-        
+
+        best_img = img.copy()
+        angle_applied = 0
+
         if is_portrait:
-            # Portrait mode: only consider 90° and 270° (landscape orientations)
-            angles_to_try = [90, 270]
-            logger.debug(f"Image is portrait ({h}x{w}), forcing landscape orientation")
+            # Portrait mode: need to rotate to landscape
+            # Try 90° and 270°, use ML to determine which is correct
+            logger.debug(f"Image is portrait ({h}x{w}), converting to landscape")
+
+            # Try 90° first (counterclockwise)
+            img_90 = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            should_flip_90 = self._detect_upside_down_with_model(img_90)
+
+            # Try 270° (clockwise)
+            img_270 = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+            should_flip_270 = self._detect_upside_down_with_model(img_270)
+
+            # Choose the one that doesn't need flipping (more likely to be correct)
+            # If both need flipping or both don't, default to 90°
+            if should_flip_270 and not should_flip_90:
+                # 90° is better (doesn't need flip)
+                best_img = img_90
+                angle_applied = 90
+            elif should_flip_90 and not should_flip_270:
+                # 270° is better (doesn't need flip)
+                best_img = img_270
+                angle_applied = 270
+            else:
+                # Both same, default to 90° and check if need flip
+                best_img = img_90
+                angle_applied = 90
+                if should_flip_90:
+                    best_img = cv2.rotate(best_img, cv2.ROTATE_180)
+                    angle_applied = 270  # 90 + 180 = 270
         else:
-            # Already landscape or square: try all angles
-            angles_to_try = [0, 90, 180, 270]
-            logger.debug(f"Image is landscape ({h}x{w}), trying all orientations")
-        
-        scores = {}
-        max_angle = 0
-        max_score = -1
-        best_rot_gray = gray
-        
-        for angle in angles_to_try:
-            rot_gray = rot_dict[angle](gray)
-            
-            # Calculate horizontal projection score
-            _, bin_img = cv2.threshold(rot_gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-            proj = np.sum(bin_img, axis=0).astype(float)
-            score = np.std(proj)
-            
-            # Bonus score for landscape orientation
-            rot_h, rot_w = rot_gray.shape[:2]
-            if rot_w > rot_h:
-                score *= 1.2  # 20% bonus for landscape
-            
-            scores[angle] = score
-            if score > max_score:
-                max_score = score
-                max_angle = angle
-                best_rot_gray = rot_gray
-        
-        best_img = rot_dict[max_angle](img)
-        
-        # Detect upside-down using ML model
-        should_flip = self._detect_upside_down_with_model(best_rot_gray)
-        if should_flip:
-            best_img = cv2.rotate(best_img, cv2.ROTATE_180)
-            final_angle = (max_angle + 180) % 360
-        else:
-            final_angle = max_angle
-        
+            # Already landscape or square
+            logger.debug(f"Image is landscape ({h}x{w}), checking orientation")
+
+            # Just check if upside-down
+            should_flip = self._detect_upside_down_with_model(img)
+            if should_flip:
+                best_img = cv2.rotate(img, cv2.ROTATE_180)
+                angle_applied = 180
+            else:
+                best_img = img
+                angle_applied = 0
+
         # Final check: ensure result is landscape
         final_h, final_w = best_img.shape[:2]
         if final_h > final_w * 1.1:
             logger.warning(f"Result still portrait ({final_h}x{final_w}), forcing 90° rotation")
             best_img = cv2.rotate(best_img, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            final_angle = (final_angle + 90) % 360
-        
-        logger.debug(
-            f"Best orientation: {final_angle}° "
-            f"(initial: {max_angle}°, score: {max_score:.2f}, "
-            f"flip: {should_flip}, scores: {scores})"
-        )
-        
-        self.orientation_stats[str(final_angle)] += 1
-        
-        return best_img, final_angle
+            angle_applied = (angle_applied + 90) % 360
+
+        logger.debug(f"ML-based orientation: {angle_applied}° applied")
+
+        self.orientation_stats[str(angle_applied)] += 1
+
+        return best_img, angle_applied
     
     def _crop_rotated_box(self, img, pts, auto_detect=True):
         """
@@ -814,7 +804,9 @@ class ExportHandler:
                     img = self._draw_masks_on_image(img, mask_items)
                 
                 # Save image with masks applied
-                img_filename = f"{key}.jpg"
+                # Sanitize key เพื่อให้แน่ใจว่าไม่มี space หรือ special characters
+                clean_key = sanitize_filename(key.replace('.jpg', '').replace('.jpeg', '').replace('.png', '').replace('.bmp', ''))
+                img_filename = f"{clean_key}.jpg"
                 img_save_path = os.path.join(split_dirs[split_name], img_filename)
                 success = imwrite_unicode(img_save_path, img)
                 
@@ -834,9 +826,11 @@ class ExportHandler:
                     if split_name in target_splits:
                         try:
                             aug_results = pipeline.apply(img, bboxes)
-                            
+
                             for aug_img, aug_bboxes, aug_name in aug_results:
-                                aug_filename = f"{key}_{aug_name}.jpg"
+                                # Sanitize augmentation name เพื่อลบ special characters
+                                clean_aug_name = sanitize_filename(aug_name.replace('.', '_'))
+                                aug_filename = f"{clean_key}_{clean_aug_name}.jpg"
                                 aug_save_path = os.path.join(split_dirs[split_name], aug_filename)
                                 
                                 success = imwrite_unicode(aug_save_path, aug_img)
@@ -1107,9 +1101,11 @@ class ExportHandler:
                     h, w = crop_np.shape[:2]
                     if w >= h:  # Horizontal (or square)
                         horizontal_count += 1
-                    
+
                     # Save crop
-                    fn = f"{key}_{idx}.jpg"
+                    # Sanitize key เพื่อให้แน่ใจว่าไม่มี space หรือ special characters
+                    clean_key = sanitize_filename(key.replace('.jpg', '').replace('.jpeg', '').replace('.png', '').replace('.bmp', ''))
+                    fn = f"{clean_key}_{idx}.jpg"
                     path = os.path.join(split_dirs[split_name], fn)
                     
                     success = imwrite_unicode(path, crop_np)
@@ -1120,7 +1116,7 @@ class ExportHandler:
                         processed += 1
                         continue
                     
-                    all_crops[split_name].append((f"images/{split_name}/{fn}", txt))
+                    all_crops[split_name].append((f"{folder_name}/images/{split_name}/{fn}", txt))
                     
                     # Augmentation (if enabled)
                     if pipeline and aug_config:
@@ -1129,9 +1125,11 @@ class ExportHandler:
                         if split_name in target_splits:
                             try:
                                 aug_results = pipeline.apply(crop_np, None)
-                                
+
                                 for aug_img, _, aug_name in aug_results:
-                                    aug_fn = f"{key}_{idx}_{aug_name}.jpg"
+                                    # Sanitize augmentation name เพื่อลบ special characters
+                                    clean_aug_name = sanitize_filename(aug_name.replace('.', '_'))
+                                    aug_fn = f"{clean_key}_{idx}_{clean_aug_name}.jpg"
                                     aug_path = os.path.join(split_dirs[split_name], aug_fn)
                                     
                                     success = imwrite_unicode(aug_path, aug_img)
@@ -1140,7 +1138,7 @@ class ExportHandler:
                                         logger.error(f"Failed to write augmented crop: {aug_path}")
                                         continue
                                     
-                                    all_crops[split_name].append((f"images/{split_name}/{aug_fn}", txt))
+                                    all_crops[split_name].append((f"{folder_name}/images/{split_name}/{aug_fn}", txt))
                             
                             except Exception as e:
                                 logger.error(f"Augmentation failed for crop {fn}: {e}")

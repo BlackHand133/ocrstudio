@@ -53,21 +53,38 @@ class WorkspaceSelectorDialog(QtWidgets.QDialog):
         
         # ===== Buttons =====
         button_layout = QtWidgets.QHBoxLayout()
-        
+
         btn_new = QtWidgets.QPushButton("New Workspace")
         btn_new.clicked.connect(self.create_new_workspace)
         button_layout.addWidget(btn_new)
-        
+
+        self.btn_rename = QtWidgets.QPushButton("Rename")
+        self.btn_rename.clicked.connect(self.rename_workspace)
+        self.btn_rename.setEnabled(False)
+        button_layout.addWidget(self.btn_rename)
+
+        self.btn_delete = QtWidgets.QPushButton("Delete")
+        self.btn_delete.clicked.connect(self.delete_workspace)
+        self.btn_delete.setEnabled(False)
+        self.btn_delete.setStyleSheet("QPushButton { color: red; }")
+        button_layout.addWidget(self.btn_delete)
+
+        self.btn_repair = QtWidgets.QPushButton("🔧 Repair")
+        self.btn_repair.clicked.connect(self.repair_workspace)
+        self.btn_repair.setEnabled(False)
+        self.btn_repair.setToolTip("ซ่อมแซม workspace ที่มีข้อมูลไม่ตรงกัน")
+        button_layout.addWidget(self.btn_repair)
+
         button_layout.addStretch()
-        
+
         btn_open = QtWidgets.QPushButton("Open")
         btn_open.clicked.connect(self.accept)
         button_layout.addWidget(btn_open)
-        
+
         btn_cancel = QtWidgets.QPushButton("Cancel")
         btn_cancel.clicked.connect(self.reject)
         button_layout.addWidget(btn_cancel)
-        
+
         layout.addLayout(button_layout)
         
         # Connect selection
@@ -98,14 +115,25 @@ class WorkspaceSelectorDialog(QtWidgets.QDialog):
         """เมื่อเลือก workspace"""
         items = self.workspace_list.selectedItems()
         if not items:
+            self.btn_rename.setEnabled(False)
+            self.btn_delete.setEnabled(False)
+            self.btn_repair.setEnabled(False)
             return
-        
+
         ws_data = items[0].data(Qt.UserRole)
         if not ws_data:
+            self.btn_rename.setEnabled(False)
+            self.btn_delete.setEnabled(False)
+            self.btn_repair.setEnabled(False)
             return
-        
+
         self.selected_workspace = ws_data["id"]
-        
+
+        # เปิดปุ่ม rename, delete และ repair
+        self.btn_rename.setEnabled(True)
+        self.btn_delete.setEnabled(True)
+        self.btn_repair.setEnabled(True)
+
         # แสดงข้อมูล
         self.info_name.setText(ws_data["name"])
         self.info_source.setText(ws_data["source_folder"])
@@ -130,6 +158,141 @@ class WorkspaceSelectorDialog(QtWidgets.QDialog):
                 if ws_data and ws_data["id"] == self.selected_workspace:
                     self.workspace_list.setCurrentItem(item)
                     break
+
+    def rename_workspace(self):
+        """เปลี่ยนชื่อ workspace"""
+        if not self.selected_workspace:
+            return
+
+        # ดึงชื่อเดิม
+        workspace_data = self.workspace_manager.load_workspace(self.selected_workspace)
+        if not workspace_data:
+            return
+
+        old_name = workspace_data["workspace"]["name"]
+
+        # แสดง dialog สำหรับกรอกชื่อใหม่
+        new_name, ok = QtWidgets.QInputDialog.getText(
+            self,
+            "Rename Workspace",
+            "Enter new workspace name:",
+            QtWidgets.QLineEdit.Normal,
+            old_name
+        )
+
+        if ok and new_name.strip():
+            success, message = self.workspace_manager.rename_workspace(
+                self.selected_workspace,
+                new_name.strip()
+            )
+
+            if success:
+                QtWidgets.QMessageBox.information(
+                    self, "Success", message
+                )
+                # รีเฟรชรายการ
+                self._load_workspaces()
+                # เลือก workspace เดิมอีกครั้ง
+                for i in range(self.workspace_list.count()):
+                    item = self.workspace_list.item(i)
+                    ws_data = item.data(Qt.UserRole)
+                    if ws_data and ws_data["id"] == self.selected_workspace:
+                        self.workspace_list.setCurrentItem(item)
+                        break
+            else:
+                QtWidgets.QMessageBox.critical(
+                    self, "Error", message
+                )
+
+    def delete_workspace(self):
+        """ลบ workspace"""
+        if not self.selected_workspace:
+            return
+
+        # ดึงข้อมูล workspace
+        workspace_data = self.workspace_manager.load_workspace(self.selected_workspace)
+        if not workspace_data:
+            return
+
+        name = workspace_data["workspace"]["name"]
+
+        # ยืนยันการลบ
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            "Delete Workspace",
+            f"Are you sure you want to delete workspace '{name}'?\n\n"
+            f"⚠️ This will permanently delete:\n"
+            f"  • All versions\n"
+            f"  • All annotations\n"
+            f"  • All workspace data\n\n"
+            f"This action cannot be undone!",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.No
+        )
+
+        if reply == QtWidgets.QMessageBox.Yes:
+            # ลบ workspace
+            success = self.workspace_manager.delete_workspace(self.selected_workspace)
+
+            if success:
+                QtWidgets.QMessageBox.information(
+                    self, "Success", f"Workspace '{name}' deleted successfully"
+                )
+                # รีเฟรชรายการ
+                self.selected_workspace = None
+                self._load_workspaces()
+            else:
+                QtWidgets.QMessageBox.critical(
+                    self, "Error", "Failed to delete workspace"
+                )
+
+    def repair_workspace(self):
+        """ซ่อมแซม workspace"""
+        if not self.selected_workspace:
+            return
+
+        # ดึงข้อมูล workspace
+        workspace_data = self.workspace_manager.load_workspace(self.selected_workspace)
+        if not workspace_data:
+            return
+
+        name = workspace_data["workspace"]["name"]
+
+        # ยืนยันการซ่อมแซม
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            "Repair Workspace",
+            f"Repair workspace '{name}'?\n\n"
+            f"This will:\n"
+            f"  • Check for missing version files\n"
+            f"  • Remove invalid version entries\n"
+            f"  • Fix current version reference\n\n"
+            f"Do you want to continue?",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.Yes
+        )
+
+        if reply == QtWidgets.QMessageBox.Yes:
+            # ซ่อมแซม workspace
+            success, message = self.workspace_manager.repair_workspace(self.selected_workspace)
+
+            if success:
+                QtWidgets.QMessageBox.information(
+                    self, "Repair Complete", message
+                )
+                # รีเฟรชรายการ
+                self._load_workspaces()
+                # เลือก workspace เดิมอีกครั้ง
+                for i in range(self.workspace_list.count()):
+                    item = self.workspace_list.item(i)
+                    ws_data = item.data(Qt.UserRole)
+                    if ws_data and ws_data["id"] == self.selected_workspace:
+                        self.workspace_list.setCurrentItem(item)
+                        break
+            else:
+                QtWidgets.QMessageBox.critical(
+                    self, "Error", message
+                )
 
 
 class NewWorkspaceDialog(QtWidgets.QDialog):

@@ -34,6 +34,18 @@ def create_toolbar(mainwin):
     act.setToolTip("สลับไป version อื่น")
     act.triggered.connect(mainwin.switch_version)
     workspace_menu.addAction(act)
+
+    act = QtWidgets.QAction("Manage Versions", mainwin)
+    act.setToolTip("จัดการ version ทั้งหมด (ดู, ลบ)")
+    act.triggered.connect(mainwin.manage_versions)
+    workspace_menu.addAction(act)
+
+    workspace_menu.addSeparator()
+
+    act = QtWidgets.QAction("Rename Workspace", mainwin)
+    act.setToolTip("เปลี่ยนชื่อ workspace ปัจจุบัน")
+    act.triggered.connect(mainwin.rename_current_workspace)
+    workspace_menu.addAction(act)
     
     # ===== 2. FILE MENU =====
     file_menu = QtWidgets.QMenu("File", mainwin)
@@ -164,18 +176,27 @@ def create_toolbar(mainwin):
     
     # ===== 7. EXPORT MENU =====
     export_menu = QtWidgets.QMenu("Export", mainwin)
-    
+
     act = QtWidgets.QAction("Save Labels (Detection)", mainwin)
     act.setShortcut("Ctrl+S")
     act.setToolTip("บันทึก dataset สำหรับ Text Detection")
     act.triggered.connect(mainwin.save_labels)
     export_menu.addAction(act)
-    
+
     act = QtWidgets.QAction("Export Recognition", mainwin)
     act.setShortcut("Ctrl+E")
     act.setToolTip("บันทึก dataset สำหรับ Text Recognition (crop รูป)")
     act.triggered.connect(mainwin.export_rec)
     export_menu.addAction(act)
+
+    # ===== 8. SETTINGS MENU =====
+    settings_menu = QtWidgets.QMenu("Settings", mainwin)
+
+    act = QtWidgets.QAction("⚙️ Preferences", mainwin)
+    act.setShortcut("Ctrl+,")
+    act.setToolTip("ตั้งค่าโปรแกรม (OCR, Application)")
+    act.triggered.connect(mainwin.open_settings)
+    settings_menu.addAction(act)
     
     # ===== สร้าง Toolbar และเพิ่ม Menus =====
     toolbar = mainwin.addToolBar("Main Toolbar")
@@ -224,7 +245,13 @@ def create_toolbar(mainwin):
     export_btn.setMenu(export_menu)
     export_btn.setPopupMode(QtWidgets.QToolButton.InstantPopup)
     toolbar.addWidget(export_btn)
-    
+
+    settings_btn = QtWidgets.QToolButton()
+    settings_btn.setText("⚙️ Settings")
+    settings_btn.setMenu(settings_menu)
+    settings_btn.setPopupMode(QtWidgets.QToolButton.InstantPopup)
+    toolbar.addWidget(settings_btn)
+
     toolbar.addSeparator()
     
     # ===== WORKSPACE INFO =====

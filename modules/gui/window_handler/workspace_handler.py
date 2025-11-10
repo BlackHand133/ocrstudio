@@ -175,5 +175,89 @@ class WorkspaceHandler:
         """ดึงสถิติของ version ปัจจุบัน"""
         if not self.version_data:
             return {}
-        
+
         return self.version_data.get("metadata", {})
+
+    def delete_version(self, version: str) -> tuple:
+        """
+        ลบ version
+
+        Args:
+            version: version ที่จะลบ
+
+        Returns:
+            (success: bool, message: str)
+        """
+        if not self.current_workspace_id:
+            return False, "No workspace loaded"
+
+        # เรียก delete_version จาก workspace_manager
+        success, message = self.main_window.workspace_manager.delete_version(
+            self.current_workspace_id,
+            version
+        )
+
+        return success, message
+
+    def get_version_list(self):
+        """
+        ดึงรายการ version ทั้งหมดใน workspace ปัจจุบัน
+
+        Returns:
+            List of version info dicts
+        """
+        if not self.current_workspace_id:
+            return []
+
+        return self.main_window.workspace_manager.get_version_list(
+            self.current_workspace_id
+        )
+
+    def rename_workspace(self, new_name: str) -> tuple:
+        """
+        เปลี่ยนชื่อ workspace ปัจจุบัน
+
+        Args:
+            new_name: ชื่อใหม่
+
+        Returns:
+            (success: bool, message: str)
+        """
+        if not self.current_workspace_id:
+            return False, "No workspace loaded"
+
+        # เรียก rename_workspace จาก workspace_manager
+        success, message = self.main_window.workspace_manager.rename_workspace(
+            self.current_workspace_id,
+            new_name
+        )
+
+        return success, message
+
+    def delete_workspace(self, workspace_id: str = None) -> bool:
+        """
+        ลบ workspace
+
+        Args:
+            workspace_id: workspace id ที่จะลบ (None = ลบ workspace ปัจจุบัน)
+
+        Returns:
+            success: bool
+        """
+        if workspace_id is None:
+            workspace_id = self.current_workspace_id
+
+        if not workspace_id:
+            logger.error("No workspace specified")
+            return False
+
+        # ถ้าลบ workspace ที่กำลังเปิดอยู่ ให้ clear state
+        if workspace_id == self.current_workspace_id:
+            self.current_workspace_id = None
+            self.current_version = None
+            self.version_data = None
+            self.main_window.annotations = {}
+            self.main_window.image_rotations = {}
+
+        # เรียก delete_workspace จาก workspace_manager
+        return self.main_window.workspace_manager.delete_workspace(workspace_id)

@@ -152,11 +152,56 @@ def sanitize_annotation(annotation: dict) -> dict:
 def sanitize_annotations(annotations: list) -> list:
     """
     แปลง numpy types ใน list ของ annotations
-    
+
     Args:
         annotations: list of annotation dicts
-    
+
     Returns:
         list of sanitized annotation dicts
     """
     return [sanitize_annotation(ann) for ann in annotations]
+
+
+def sanitize_filename(filename: str, replacement: str = '_') -> str:
+    """
+    ทำความสะอาดชื่อไฟล์โดยแทนที่ space และ special characters ด้วย underscore
+    เพื่อป้องกันปัญหาใน ML/DL training systems
+
+    Args:
+        filename: ชื่อไฟล์ที่ต้องการทำความสะอาด
+        replacement: ตัวอักษรที่ใช้แทนที่ (default: '_')
+
+    Returns:
+        ชื่อไฟล์ที่ทำความสะอาดแล้ว
+
+    Examples:
+        >>> sanitize_filename("my file.jpg")
+        "my_file.jpg"
+        >>> sanitize_filename("image (1).png")
+        "image_1_.png"
+        >>> sanitize_filename("test + demo.jpg")
+        "test_demo.jpg"
+    """
+    import re
+
+    # แยกชื่อไฟล์และ extension
+    parts = filename.rsplit('.', 1)
+    name = parts[0]
+    ext = parts[1] if len(parts) > 1 else ''
+
+    # แทนที่ space และ special characters ด้วย replacement
+    # รักษาไว้เฉพาะ: ตัวอักษร (a-z, A-Z, ภาษาต่างๆ), ตัวเลข (0-9), underscore (_), hyphen (-)
+    # Pattern: แทนที่ทุกอักษรที่ไม่ใช่ word characters (รวมถึง Unicode), ไม่ใช่ hyphen, ไม่ใช่ dot
+    name = re.sub(r'[^\w\-]+', replacement, name, flags=re.UNICODE)
+
+    # ลบ underscore ที่ซ้ำกัน (ถ้ามี)
+    name = re.sub(r'_+', '_', name)
+
+    # ลบ underscore ที่ต้นและท้าย
+    name = name.strip('_')
+
+    # รวมกลับเป็นชื่อไฟล์
+    if ext:
+        return f"{name}.{ext}"
+    else:
+        return name

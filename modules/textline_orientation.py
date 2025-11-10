@@ -52,15 +52,24 @@ class TextlineOrientationClassifier:
         
         self.model_dir = model_dir
         
-        # ตรวจสอบไฟล์
+        # ตรวจสอบไฟล์ - รองรับทั้ง .pdmodel และ .json (PIR format)
         self.model_file = os.path.join(model_dir, "inference.pdmodel")
+        self.json_file = os.path.join(model_dir, "inference.json")
         self.params_file = os.path.join(model_dir, "inference.pdiparams")
-        
-        if not os.path.exists(self.model_file):
-            self.logger.error(f"Model file not found: {self.model_file}")
+
+        # เลือกใช้ไฟล์ที่มี: pdmodel > json
+        if os.path.exists(self.model_file):
+            self.using_format = "pdmodel"
+            self.logger.info("Using inference.pdmodel (binary format)")
+        elif os.path.exists(self.json_file):
+            self.using_format = "json"
+            self.logger.info("Using inference.json (PIR format)")
+            self.model_file = self.json_file  # ใช้ JSON แทน
+        else:
+            self.logger.error(f"Model file not found: {self.model_file} or {self.json_file}")
             self.predictor = None
             return
-        
+
         if not os.path.exists(self.params_file):
             self.logger.error(f"Params file not found: {self.params_file}")
             self.predictor = None

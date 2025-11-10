@@ -1,0 +1,9 @@
+PyQt5
+paddlepaddle
+paddleocr
+opencv-python
+Pillow
+numpy
+PyYAML
+Shapely
+imgaug

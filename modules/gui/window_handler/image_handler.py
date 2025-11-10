@@ -4,6 +4,7 @@ import os
 import logging
 from PyQt5 import QtWidgets, QtGui
 from PyQt5.QtCore import Qt, QRectF
+from modules.utils import sanitize_filename
 
 logger = logging.getLogger("TextDetGUI")
 
@@ -44,7 +45,9 @@ class ImageHandler:
         for root_dir, _, files in os.walk(folder):
             for fn in sorted(files):
                 if os.path.splitext(fn.lower())[1] in exts:
-                    key = f"{idx:04d}_{fn}"
+                    # Sanitize filename เพื่อลบ space และ special characters
+                    clean_fn = sanitize_filename(fn)
+                    key = f"{idx:04d}_{clean_fn}"
                     full = os.path.join(root_dir, fn)
                     self.main_window.image_items.append((key, full))
                     

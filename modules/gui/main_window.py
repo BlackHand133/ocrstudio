@@ -243,14 +243,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 self, "Warning", "No workspace loaded"
             )
             return
-        
+
         ws_info = self.workspace_handler.get_workspace_info()
         available_versions = ws_info.get("available_versions", [])
         current_version = ws_info.get("current_version", "")
-        
+
         if not available_versions:
             return
-        
+
         version, ok = QtWidgets.QInputDialog.getItem(
             self, "Switch Version",
             "Select version:",
@@ -258,23 +258,108 @@ class MainWindow(QtWidgets.QMainWindow):
             available_versions.index(current_version) if current_version in available_versions else 0,
             False
         )
-        
+
         if ok and version and version != current_version:
             success = self.workspace_handler.switch_version(version)
-            
+
             if success:
                 # ล้างหน้าจอ
                 self.scene.clear()
                 self.box_items.clear()
                 self.list_widget.clear()
-                
+
                 self._update_workspace_ui()
-                
+
                 QtWidgets.QMessageBox.information(
                     self, "Success",
                     f"Switched to version: {version}"
                 )
-    
+
+    def manage_versions(self):
+        """จัดการ version ทั้งหมด"""
+        if not self.workspace_handler.current_workspace_id:
+            QtWidgets.QMessageBox.warning(
+                self, "Warning", "No workspace loaded"
+            )
+            return
+
+        from modules.gui.version_manager_dialog import VersionManagerDialog
+
+        dialog = VersionManagerDialog(self.workspace_handler, self)
+        if dialog.exec_() == QtWidgets.QDialog.Accepted:
+            # รีเฟรช UI หลังจากมีการเปลี่ยนแปลง version
+            self.scene.clear()
+            self.box_items.clear()
+            self.list_widget.clear()
+            self._update_workspace_ui()
+
+    def rename_current_workspace(self):
+        """เปลี่ยนชื่อ workspace ปัจจุบัน"""
+        if not self.workspace_handler.current_workspace_id:
+            QtWidgets.QMessageBox.warning(
+                self, "Warning", "No workspace loaded"
+            )
+            return
+
+        ws_info = self.workspace_handler.get_workspace_info()
+        old_name = ws_info.get('name', '')
+
+        # แสดง dialog สำหรับกรอกชื่อใหม่
+        new_name, ok = QtWidgets.QInputDialog.getText(
+            self,
+            "Rename Workspace",
+            "Enter new workspace name:",
+            QtWidgets.QLineEdit.Normal,
+            old_name
+        )
+
+        if ok and new_name.strip():
+            success, message = self.workspace_handler.rename_workspace(new_name.strip())
+
+            if success:
+                QtWidgets.QMessageBox.information(
+                    self, "Success", message
+                )
+                # อัพเดต UI
+                self._update_workspace_ui()
+            else:
+                QtWidgets.QMessageBox.critical(
+                    self, "Error", message
+                )
+
+    def open_settings(self):
+        """เปิด Settings Dialog"""
+        from modules.gui.settings_dialog import SettingsDialog
+        from modules.config_loader import get_loader
+
+        dialog = SettingsDialog(get_loader(), self)
+
+        # เชื่อม signal สำหรับ reload detector
+        dialog.settings_changed.connect(self._reload_detector)
+
+        dialog.exec_()
+
+    def _reload_detector(self):
+        """Reload OCR detector หลังจาก settings เปลี่ยน"""
+        try:
+            logger.info("Reloading OCR detector with new settings...")
+            self.detector = TextDetector()  # สร้าง detector ใหม่ตาม config
+
+            QtWidgets.QMessageBox.information(
+                self,
+                "Settings Applied",
+                "Settings have been saved successfully.\nOCR detector has been reloaded."
+            )
+
+            logger.info("OCR detector reloaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to reload detector: {e}")
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to reload OCR detector:\n{str(e)}"
+            )
+
     # ===== Delegated Methods =====
     
     # Workspace Handler

@@ -7,24 +7,84 @@ device:
 
 # PaddleOCR settings
 paddleocr:
+  # ===== Basic Settings =====
   # Language
   lang: "th"
 
   # Device
   device: "cpu"
 
-  # Features
-  use_doc_orientation_classify: false
-  use_doc_unwarping: false
-  use_textline_orientation: false
+  # OCR Version (PP-OCRv5, PP-OCRv4, PP-OCRv3)
+  # ocr_version: null  # null = use default (latest)
 
-  # Detection parameters
-  det_db_box_thresh: 0.7        # Higher = more strict (0.5-0.9)
-  det_db_unclip_ratio: 1.5      # Higher = larger boxes (1.0-2.5)
+  # ===== Model Paths (Custom Models) =====
+  # Set these to use custom models from models/ folder
+  # Leave commented (or set to null) to use default PaddleOCR models
 
-  # Recognition parameters
-  rec_batch_num: 6
+  # Detection Model
+  # use_custom_detection_model: false  # Set to true to enable custom path
+  # text_detection_model_name: null
+  # text_detection_model_dir: null     # e.g., "models/det/my_det_model"
 
-  # Other settings
-  drop_score: 0.5
-  use_angle_cls: true
+  # Recognition Model
+  # use_custom_recognition_model: false  # Set to true to enable custom path
+  # text_recognition_model_name: null
+  # text_recognition_model_dir: null     # e.g., "models/rec/my_rec_model"
+
+  # ===== Detection Parameters =====
+  # Use custom detection parameters
+  # use_custom_detection_params: false
+
+  # Detection thresholds and settings
+  det_db_box_thresh: 0.7              # Text box threshold (0.5-0.9, higher = stricter)
+  det_db_unclip_ratio: 1.5            # Box expansion ratio (1.0-2.5, higher = larger boxes)
+  # text_det_thresh: null               # Pixel threshold
+  # text_det_limit_side_len: null       # Max image side length for detection
+  # text_det_limit_type: null           # "min" or "max"
+  # text_det_input_shape: null          # e.g., [640, 640]
+
+  # ===== Recognition Parameters =====
+  # Use custom recognition parameters
+  # use_custom_recognition_params: false
+
+  rec_batch_num: 6                    # Batch size for recognition
+  drop_score: 0.5                     # Min score threshold (0.0-1.0)
+  # text_rec_score_thresh: null         # Alternative score threshold
+  # text_rec_input_shape: null          # e.g., [3, 48, 320]
+
+  # ===== Advanced Features =====
+  # Angle Classification (Text rotation)
+  use_angle_cls: true                 # Enable 180° rotation detection
+
+  # Document Orientation Classification
+  use_doc_orientation_classify: false # Enable document orientation (0°, 90°, 180°, 270°)
+  # use_custom_orientation_model: false
+  # doc_orientation_classify_model_name: null
+  # doc_orientation_classify_model_dir: null  # e.g., "models/orientation/my_model"
+
+  # Document Unwarping (Curved text correction)
+  use_doc_unwarping: false            # Enable text unwarping
+  # use_custom_unwarping_model: false
+  # doc_unwarping_model_name: null
+  # doc_unwarping_model_dir: null       # e.g., "models/unwarp/my_model"
+
+  # Textline Orientation
+  use_textline_orientation: false     # Enable text line orientation
+  # use_custom_textline_model: false
+  # textline_orientation_model_name: null
+  # textline_orientation_model_dir: null  # e.g., "models/textline/my_model"
+  # textline_orientation_batch_size: null
+
+  # ===== Performance Settings =====
+  # CPU Acceleration
+  enable_mkldnn: true                 # Enable MKL-DNN for CPU
+  mkldnn_cache_capacity: 10           # MKL-DNN cache size
+  cpu_threads: 8                      # Number of CPU threads
+
+  # High Performance Inference
+  # enable_hpi: false                   # Enable HPI mode
+  # precision: "fp32"                   # "fp32" or "fp16"
+
+  # ===== Other Settings =====
+  # Custom PaddleX config file
+  # paddlex_config: null                # Path to PaddleX config YAML

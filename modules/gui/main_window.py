@@ -358,6 +358,48 @@ class MainWindow(QtWidgets.QMainWindow):
                 f"Failed to reload OCR detector:\n{str(e)}"
             )
 
+    def open_paddleocr_settings(self):
+        """เปิด PaddleOCR Advanced Settings Dialog"""
+        from modules.gui.dialogs.paddleocr_settings_dialog import PaddleOCRSettingsDialog
+
+        dialog = PaddleOCRSettingsDialog(self)
+
+        # เชื่อม signal สำหรับ reload detector
+        dialog.settings_changed.connect(self._on_paddleocr_settings_changed)
+
+        dialog.exec_()
+
+    def _on_paddleocr_settings_changed(self):
+        """Handle PaddleOCR settings change"""
+        # แสดง confirmation dialog
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            "Reload OCR Detector",
+            "PaddleOCR settings have been changed.\n"
+            "Do you want to reload the OCR detector now?",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
+        )
+
+        if reply == QtWidgets.QMessageBox.Yes:
+            try:
+                logger.info("Reloading OCR detector with new PaddleOCR settings...")
+                self.detector = TextDetector()  # สร้าง detector ใหม่
+
+                QtWidgets.QMessageBox.information(
+                    self,
+                    "Detector Reloaded",
+                    "OCR detector has been reloaded with new settings."
+                )
+
+                logger.info("OCR detector reloaded successfully")
+            except Exception as e:
+                logger.error(f"Failed to reload detector: {e}", exc_info=True)
+                QtWidgets.QMessageBox.critical(
+                    self,
+                    "Error",
+                    f"Failed to reload OCR detector:\n{str(e)}"
+                )
+
     # ===== Delegated Methods =====
     
     # Workspace Handler

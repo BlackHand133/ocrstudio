@@ -197,6 +197,12 @@ def create_toolbar(mainwin):
     act.setToolTip("ตั้งค่าโปรแกรม (OCR, Application)")
     act.triggered.connect(mainwin.open_settings)
     settings_menu.addAction(act)
+
+    act = QtWidgets.QAction("🔧 PaddleOCR Settings", mainwin)
+    act.setShortcut("Ctrl+Shift+P")
+    act.setToolTip("ตั้งค่า PaddleOCR (Version, Custom Models, Parameters)")
+    act.triggered.connect(mainwin.open_paddleocr_settings)
+    settings_menu.addAction(act)
     
     # ===== สร้าง Toolbar และเพิ่ม Menus =====
     toolbar = mainwin.addToolBar("Main Toolbar")

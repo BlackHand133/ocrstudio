@@ -1,0 +1,36 @@
+# GPU Profile Configuration
+# Faster processing with CUDA support
+
+# Device settings
+device:
+  type: "gpu"
+  gpu_id: 0                      # GPU device ID (0-7)
+  gpu_mem: 8000                  # GPU memory allocation (MB)
+
+# PaddleOCR settings
+paddleocr:
+  # Language
+  lang: "th"
+
+  # Device
+  device: "gpu"
+
+  # Features (can enable more features with GPU)
+  use_doc_orientation_classify: false
+  use_doc_unwarping: false
+  use_textline_orientation: true    # Enabled for GPU
+
+  # Detection parameters
+  det_db_box_thresh: 0.7        # Higher = more strict (0.5-0.9)
+  det_db_unclip_ratio: 1.5      # Higher = larger boxes (1.0-2.5)
+
+  # Recognition parameters
+  rec_batch_num: 12             # Larger batch for GPU
+
+  # Other settings
+  drop_score: 0.5
+  use_angle_cls: true
+
+  # GPU-specific optimizations
+  enable_mkldnn: false          # Disabled for GPU
+  use_tensorrt: false           # Can be enabled for better performance

@@ -1,0 +1,29 @@
+# Default Configuration
+# This file specifies which profile to use by default
+
+# Default profile (cpu or gpu)
+default_profile: "cpu"
+
+# Application settings
+app:
+  # Auto-save changes
+  auto_save: true
+
+  # Cache annotations for faster loading
+  cache_annotations: true
+
+  # Maximum recent workspaces to remember
+  max_recent_workspaces: 10
+
+  # UI settings
+  ui:
+    show_tooltips: true
+    theme: "default"
+
+# Logging settings
+logging:
+  level: "INFO"           # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  console: true           # Log to console
+  file: true              # Log to file
+  max_file_size_mb: 10    # Max log file size
+  backup_count: 5         # Number of backup log files

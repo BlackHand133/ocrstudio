@@ -8,17 +8,15 @@ from modules.detector import TextDetector
 from modules.workspace_manager import WorkspaceManager
 from modules.gui.canvas_view import CanvasView
 from modules.gui.ui_components import create_toolbar, create_left_dock, create_status_bar
-from modules.gui.workspace_selector_dialog import WorkspaceSelectorDialog
-from modules.gui.window_handler import (
-    WorkspaceHandler,
-    ImageHandler,
-    AnnotationHandler,
-    DetectionHandler,
-    UIHandler,
-    TableHandler,
-    ExportHandler,
-    RotationHandler
-)
+from modules.gui.dialogs.workspace_selector_dialog import WorkspaceSelectorDialog
+from modules.gui.handlers.workspace import WorkspaceHandler
+from modules.gui.handlers.image import ImageHandler
+from modules.gui.handlers.annotation import AnnotationHandler
+from modules.gui.handlers.detection import DetectionHandler
+from modules.gui.handlers.ui import UIHandler
+from modules.gui.handlers.table import TableHandler
+from modules.gui.handlers.export import ExportHandler
+from modules.gui.handlers.rotation import RotationHandler
 
 logger = logging.getLogger("TextDetGUI")
 

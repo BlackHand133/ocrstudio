@@ -1,0 +1,30 @@
+# CPU Profile Configuration
+# Recommended for stability and compatibility
+
+# Device settings
+device:
+  type: "cpu"
+
+# PaddleOCR settings
+paddleocr:
+  # Language
+  lang: "th"
+
+  # Device
+  device: "cpu"
+
+  # Features
+  use_doc_orientation_classify: false
+  use_doc_unwarping: false
+  use_textline_orientation: false
+
+  # Detection parameters
+  det_db_box_thresh: 0.7        # Higher = more strict (0.5-0.9)
+  det_db_unclip_ratio: 1.5      # Higher = larger boxes (1.0-2.5)
+
+  # Recognition parameters
+  rec_batch_num: 6
+
+  # Other settings
+  drop_score: 0.5
+  use_angle_cls: true

@@ -1,0 +1,17 @@
+# Path Configurations
+# All paths are relative to project root unless absolute
+
+# Data directories
+workspaces: "data/workspaces"
+models: "data/models"
+output: "data/output"
+output_det: "data/output_det"
+output_rec: "data/output_rec"
+logs: "data/logs"
+cache: "data/cache"
+
+# Model paths
+model_textline_orientation: "data/models/textline_orientation"
+
+# Temporary directories
+temp: "data/temp"

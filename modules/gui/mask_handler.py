@@ -24,7 +24,7 @@ class MaskHandler:
         if not self.mainwin.img_key:
             return
         
-        from modules.gui.mask_item import MaskQuadItem
+        from modules.gui.items.mask_item import MaskQuadItem
         
         # แปลง rect เป็น 4 จุด
         x1, y1 = rect.left(), rect.top()
@@ -52,7 +52,7 @@ class MaskHandler:
         if not self.mainwin.img_key:
             return
         
-        from modules.gui.mask_item import MaskPolygonItem
+        from modules.gui.items.mask_item import MaskPolygonItem
         
         # สร้าง mask item
         mask = MaskPolygonItem(points, self.current_mask_color)

@@ -287,22 +287,6 @@ class PaddleOCRSettingsDialog(QtWidgets.QDialog):
         self.rec_batch_spin.setValue(6)
         rec_layout.addRow("Batch Size:", self.rec_batch_spin)
 
-        # Drop score with slider
-        self.drop_score_spin = QtWidgets.QDoubleSpinBox()
-        self.drop_score_spin.setRange(0.0, 1.0)
-        self.drop_score_spin.setSingleStep(0.05)
-        self.drop_score_spin.setValue(0.5)
-        self.drop_score_spin.setDecimals(2)
-        rec_layout.addRow(
-            "Min Score Threshold:",
-            self.create_slider_spinbox(self.drop_score_spin, 0.0, 1.0, 0.05)
-        )
-
-        # Help text
-        score_help = QtWidgets.QLabel("Higher = only high-confidence text")
-        score_help.setStyleSheet("QLabel { color: #666; font-size: 9pt; }")
-        rec_layout.addRow("", score_help)
-
         rec_group.setLayout(rec_layout)
         layout.addWidget(rec_group)
 
@@ -314,19 +298,6 @@ class PaddleOCRSettingsDialog(QtWidgets.QDialog):
         tab = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(tab)
         layout.setSpacing(15)
-
-        # === Basic Features ===
-        basic_group = QtWidgets.QGroupBox("Basic Features")
-        basic_layout = QtWidgets.QVBoxLayout()
-        basic_layout.setSpacing(8)
-
-        self.use_angle_cls_check = QtWidgets.QCheckBox(
-            "Enable Angle Classification (180° rotation detection)"
-        )
-        basic_layout.addWidget(self.use_angle_cls_check)
-
-        basic_group.setLayout(basic_layout)
-        layout.addWidget(basic_group)
 
         # === Advanced Features ===
         adv_group = QtWidgets.QGroupBox("Advanced Features")
@@ -469,14 +440,8 @@ class PaddleOCRSettingsDialog(QtWidgets.QDialog):
         self.rec_batch_spin.setValue(
             params.get('rec_batch_num', 6)
         )
-        self.drop_score_spin.setValue(
-            params.get('drop_score', 0.5)
-        )
 
         # Features
-        self.use_angle_cls_check.setChecked(
-            params.get('use_angle_cls', True)
-        )
         self.use_doc_orient_check.setChecked(
             params.get('use_doc_orientation_classify', False)
         )
@@ -517,10 +482,8 @@ class PaddleOCRSettingsDialog(QtWidgets.QDialog):
 
         # Recognition parameters
         settings['rec_batch_num'] = self.rec_batch_spin.value()
-        settings['drop_score'] = self.drop_score_spin.value()
 
         # Features
-        settings['use_angle_cls'] = self.use_angle_cls_check.isChecked()
         settings['use_doc_orientation_classify'] = self.use_doc_orient_check.isChecked()
         settings['use_doc_unwarping'] = self.use_doc_unwarp_check.isChecked()
         settings['use_textline_orientation'] = self.use_textline_orient_check.isChecked()

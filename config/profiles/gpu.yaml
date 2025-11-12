@@ -50,14 +50,10 @@ paddleocr:
   # use_custom_recognition_params: false
 
   rec_batch_num: 12                   # Batch size for recognition (larger for GPU)
-  drop_score: 0.5                     # Min score threshold (0.0-1.0)
-  # text_rec_score_thresh: null         # Alternative score threshold
+  # text_rec_score_thresh: 0.5          # Recognition score threshold (0.0-1.0)
   # text_rec_input_shape: null          # e.g., [3, 48, 320]
 
   # ===== Advanced Features =====
-  # Angle Classification (Text rotation)
-  use_angle_cls: true                 # Enable 180° rotation detection
-
   # Document Orientation Classification
   use_doc_orientation_classify: false # Enable document orientation (0°, 90°, 180°, 270°)
   # use_custom_orientation_model: false

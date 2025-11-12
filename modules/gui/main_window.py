@@ -23,14 +23,14 @@ logger = logging.getLogger("TextDetGUI")
 
 class MainWindow(QtWidgets.QMainWindow):
     """
-    หน้าต่างหลักของแอปพลิเคชัน (Workspace System + Masking)
+    Main window of the application (Workspace System + Masking)
     """
-    
+
     def __init__(self):
         super().__init__()
-        
-        # Initialize detector (ใช้ config จาก config/config.yaml)
-        self.detector = TextDetector()  # ไม่ส่ง parameters = ใช้ config.yaml
+
+        # Initialize detector (use config from config/config.yaml)
+        self.detector = TextDetector()  # Don't pass parameters = use config.yaml
         
         # Data attributes
         self.image_items = []      # List of (key, full_path)
@@ -70,7 +70,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._select_initial_workspace()
     
     def _init_handlers(self):
-        """สร้าง handler instances"""
+        """Create handler instances"""
         self.workspace_handler = WorkspaceHandler(self)
         self.image_handler = ImageHandler(self)
         self.annotation_handler = AnnotationHandler(self)
@@ -79,13 +79,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.table_handler = TableHandler(self)
         self.export_handler = ExportHandler(self)
         self.rotation_handler = RotationHandler(self)
-        
+
         # 🔒 Mask Handler (NEW!)
         from modules.gui.mask_handler import MaskHandler
         self.mask_handler = MaskHandler(self)
-    
+
     def _init_ui(self):
-        """สร้าง UI"""
+        """Create UI"""
         self.setWindowTitle("TextDet GUI - Workspace System")
         self.resize(1400, 900)
         
@@ -112,94 +112,94 @@ class MainWindow(QtWidgets.QMainWindow):
         logger.info("MainWindow initialized")
     
     def _select_initial_workspace(self):
-        """เลือก workspace เมื่อเริ่มโปรแกรม"""
-        # ตรวจสอบว่ามี workspace หรือไม่
+        """Select workspace when starting program"""
+        # Check if workspace exists
         workspaces = self.workspace_manager.get_workspace_list()
-        
+
         if not workspaces:
-            # ไม่มี workspace -> แสดง dialog
+            # No workspace -> show dialog
             self._show_workspace_selector()
         else:
-            # ลองโหลด workspace ล่าสุด
+            # Try to load last workspace
             current_ws = self.workspace_manager.app_config.get("current_workspace")
-            
+
             if current_ws:
                 success = self.workspace_handler.load_workspace(current_ws)
                 if success:
-                    # โหลดสำเร็จ -> อัปเดต UI
+                    # Load successful -> update UI
                     self._update_workspace_ui()
                     return
-            
-            # ถ้าโหลดไม่สำเร็จ -> แสดง selector
+
+            # If load failed -> show selector
             self._show_workspace_selector()
-    
+
     def _show_workspace_selector(self):
-        """แสดง workspace selector dialog"""
+        """Show workspace selector dialog"""
         dialog = WorkspaceSelectorDialog(self.workspace_manager, self)
-        
+
         if dialog.exec_() == QtWidgets.QDialog.Accepted:
             workspace_id = dialog.selected_workspace
             if workspace_id:
                 self.workspace_handler.load_workspace(workspace_id)
                 self._update_workspace_ui()
         else:
-            # User กด cancel -> ออกจากโปรแกรม
+            # User pressed cancel -> exit program
             logger.info("No workspace selected. Exiting...")
             QtWidgets.QApplication.quit()
-    
+
     def _update_workspace_ui(self):
-        """อัปเดต UI หลังโหลด workspace"""
+        """Update UI after loading workspace"""
         ws_info = self.workspace_handler.get_workspace_info()
-        
+
         if ws_info:
-            # อัปเดต window title
+            # Update window title
             title = f"TextDet GUI - {ws_info['name']} ({ws_info['current_version']})"
             self.setWindowTitle(title)
-            
-            # อัปเดต workspace label
+
+            # Update workspace label
             if hasattr(self, 'workspace_label'):
                 self.workspace_label.setText(
                     f"  📁 {ws_info['name']} ({ws_info['current_version']})"
                 )
-            
+
             logger.info(f"Workspace loaded: {ws_info['name']}")
     
     # ===== Workspace Methods =====
-    
+
     def switch_workspace(self):
-        """สลับ workspace"""
-        # บันทึก workspace ปัจจุบันก่อน
+        """Switch workspace"""
+        # Save current workspace first
         if self.workspace_handler.current_workspace_id:
             self.workspace_handler.save_workspace()
-        
-        # แสดง selector
+
+        # Show selector
         self._show_workspace_selector()
-    
+
     def create_new_workspace(self):
-        """สร้าง workspace ใหม่"""
+        """Create new workspace"""
         from modules.gui.workspace_selector_dialog import NewWorkspaceDialog
-        
+
         dialog = NewWorkspaceDialog(self.workspace_manager, self)
         if dialog.exec_() == QtWidgets.QDialog.Accepted:
             workspace_id = dialog.workspace_id
             if workspace_id:
                 self.workspace_handler.load_workspace(workspace_id)
                 self._update_workspace_ui()
-    
+
     def create_new_version(self):
-        """สร้าง version ใหม่"""
+        """Create new version"""
         if not self.workspace_handler.current_workspace_id:
             QtWidgets.QMessageBox.warning(
                 self, "Warning", "No workspace loaded"
             )
             return
-        
-        # Dialog สำหรับสร้าง version
+
+        # Dialog for creating version
         ws_info = self.workspace_handler.get_workspace_info()
         current_version = ws_info.get("current_version", "v1")
         available_versions = ws_info.get("available_versions", [])
-        
-        # หาเบอร์ version ใหม่
+
+        # Find new version number
         next_num = 1
         for v in available_versions:
             if v.startswith('v'):
@@ -208,7 +208,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     next_num = max(next_num, num + 1)
                 except:
                     pass
-        
+
         new_version = f"v{next_num}"
         
         description, ok = QtWidgets.QInputDialog.getText(
@@ -235,7 +235,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 )
     
     def switch_version(self):
-        """สลับ version"""
+        """Switch version"""
         if not self.workspace_handler.current_workspace_id:
             QtWidgets.QMessageBox.warning(
                 self, "Warning", "No workspace loaded"
@@ -261,7 +261,7 @@ class MainWindow(QtWidgets.QMainWindow):
             success = self.workspace_handler.switch_version(version)
 
             if success:
-                # ล้างหน้าจอ
+                # Clear screen
                 self.scene.clear()
                 self.box_items.clear()
                 self.list_widget.clear()
@@ -274,7 +274,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 )
 
     def manage_versions(self):
-        """จัดการ version ทั้งหมด"""
+        """Manage all versions"""
         if not self.workspace_handler.current_workspace_id:
             QtWidgets.QMessageBox.warning(
                 self, "Warning", "No workspace loaded"
@@ -285,14 +285,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
         dialog = VersionManagerDialog(self.workspace_handler, self)
         if dialog.exec_() == QtWidgets.QDialog.Accepted:
-            # รีเฟรช UI หลังจากมีการเปลี่ยนแปลง version
+            # Refresh UI after version changes
             self.scene.clear()
             self.box_items.clear()
             self.list_widget.clear()
             self._update_workspace_ui()
 
     def rename_current_workspace(self):
-        """เปลี่ยนชื่อ workspace ปัจจุบัน"""
+        """Rename current workspace"""
         if not self.workspace_handler.current_workspace_id:
             QtWidgets.QMessageBox.warning(
                 self, "Warning", "No workspace loaded"
@@ -302,7 +302,7 @@ class MainWindow(QtWidgets.QMainWindow):
         ws_info = self.workspace_handler.get_workspace_info()
         old_name = ws_info.get('name', '')
 
-        # แสดง dialog สำหรับกรอกชื่อใหม่
+        # Show dialog to enter new name
         new_name, ok = QtWidgets.QInputDialog.getText(
             self,
             "Rename Workspace",
@@ -318,7 +318,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 QtWidgets.QMessageBox.information(
                     self, "Success", message
                 )
-                # อัพเดต UI
+                # Update UI
                 self._update_workspace_ui()
             else:
                 QtWidgets.QMessageBox.critical(
@@ -326,22 +326,22 @@ class MainWindow(QtWidgets.QMainWindow):
                 )
 
     def open_settings(self):
-        """เปิด Settings Dialog"""
+        """Open Settings Dialog"""
         from modules.gui.settings_dialog import SettingsDialog
         from modules.config_loader import get_loader
 
         dialog = SettingsDialog(get_loader(), self)
 
-        # เชื่อม signal สำหรับ reload detector
+        # Connect signal for reload detector
         dialog.settings_changed.connect(self._reload_detector)
 
         dialog.exec_()
 
     def _reload_detector(self):
-        """Reload OCR detector หลังจาก settings เปลี่ยน"""
+        """Reload OCR detector after settings change"""
         try:
             logger.info("Reloading OCR detector with new settings...")
-            self.detector = TextDetector()  # สร้าง detector ใหม่ตาม config
+            self.detector = TextDetector()  # Create new detector according to config
 
             QtWidgets.QMessageBox.information(
                 self,
@@ -359,19 +359,19 @@ class MainWindow(QtWidgets.QMainWindow):
             )
 
     def open_paddleocr_settings(self):
-        """เปิด PaddleOCR Advanced Settings Dialog"""
+        """Open PaddleOCR Advanced Settings Dialog"""
         from modules.gui.dialogs.paddleocr_settings_dialog import PaddleOCRSettingsDialog
 
         dialog = PaddleOCRSettingsDialog(self)
 
-        # เชื่อม signal สำหรับ reload detector
+        # Connect signal for reload detector
         dialog.settings_changed.connect(self._on_paddleocr_settings_changed)
 
         dialog.exec_()
 
     def _on_paddleocr_settings_changed(self):
         """Handle PaddleOCR settings change"""
-        # แสดง confirmation dialog
+        # Show confirmation dialog
         reply = QtWidgets.QMessageBox.question(
             self,
             "Reload OCR Detector",
@@ -383,7 +383,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if reply == QtWidgets.QMessageBox.Yes:
             try:
                 logger.info("Reloading OCR detector with new PaddleOCR settings...")
-                self.detector = TextDetector()  # สร้าง detector ใหม่
+                self.detector = TextDetector()  # Create new detector
 
                 QtWidgets.QMessageBox.information(
                     self,
@@ -401,205 +401,205 @@ class MainWindow(QtWidgets.QMainWindow):
                 )
 
     # ===== Delegated Methods =====
-    
+
     # Workspace Handler
     def _save_cache(self):
-        """บันทึก workspace (แบบ cache)"""
+        """Save workspace (cache style)"""
         self.workspace_handler.save_workspace()
-    
+
     # Image Handler
     def open_folder(self, *args):
-        """เปิดโฟลเดอร์รูปภาพ"""
+        """Open image folder"""
         self.image_handler.open_folder()
-    
+
     def on_image_selected(self, item):
-        """เมื่อเลือกรูปจาก list"""
+        """When selecting image from list"""
         self.image_handler.on_image_selected(item)
-    
+
     def check_only_annotated(self):
-        """เช็คเฉพาะรูปที่มี annotation"""
+        """Check only images with annotations"""
         self.image_handler.check_only_annotated()
-    
+
     def uncheck_unannotated(self):
-        """ยกเลิกเช็ครูปที่ไม่มี annotation"""
+        """Uncheck images without annotations"""
         self.image_handler.uncheck_unannotated()
-    
+
     def select_all_images(self):
-        """เลือกทุกรูป (Select All)"""
+        """Select all images (Select All)"""
         self.image_handler.select_all_images()
-    
+
     def deselect_all_images(self):
-        """ยกเลิกการเลือกทุกรูป (Deselect All)"""
+        """Deselect all images (Deselect All)"""
         self.image_handler.deselect_all_images()
-    
+
     def _is_item_checked(self, key):
-        """ตรวจสอบว่ารูปถูกเช็คหรือไม่"""
+        """Check if image is checked"""
         return self.image_handler.is_item_checked(key)
-    
+
     # Annotation Handler
     def delete_selected(self, *args):
-        """ลบ annotation ที่เลือก"""
+        """Delete selected annotation"""
         self.annotation_handler.delete_selected()
-    
+
     # Detection Handler
     def auto_label_current(self, *args):
-        """Auto-detect รูปปัจจุบัน"""
+        """Auto-detect current image"""
         self.detection_handler.auto_label_current()
-    
+
     def auto_label_all(self, *args):
-        """Auto-detect รูปทั้งหมด"""
+        """Auto-detect all images"""
         self.detection_handler.auto_label_all()
-    
+
     def auto_label_selected(self, *args):
-        """Auto-detect รูปที่เลือกไว้เท่านั้น"""
+        """Auto-detect only selected images"""
         self.detection_handler.auto_label_selected()
-    
+
     # UI Handler
     def toggle_draw_mode(self, checked):
-        """เปิด/ปิดโหมดวาดกล่อง"""
+        """Toggle box drawing mode"""
         self.draw_mode = checked
-        
-        # ปิด mask_mode ถ้าเปิด draw_mode
+
+        # Close mask_mode if opening draw_mode
         if checked and self.mask_mode:
             self.mask_mode = False
             if hasattr(self, 'mask_action'):
                 self.mask_action.setChecked(False)
-        
-        # อัปเดต mode combo
+
+        # Update mode combo
         if hasattr(self, 'mode_combo'):
             self.mode_combo.setCurrentText("Annotation")
-        
+
         self.ui_handler.toggle_draw_mode(checked)
-    
+
     def toggle_recog_mode(self, checked):
-        """เปิด/ปิดโหมด Recognition"""
+        """Toggle Recognition mode"""
         self.ui_handler.toggle_recog_mode(checked)
-    
+
     def on_annotation_type_changed(self, new_type):
-        """เปลี่ยนประเภท annotation"""
+        """Change annotation type"""
         self.ui_handler.on_annotation_type_changed(new_type)
-    
+
     def update_annotation_info(self):
-        """อัปเดตข้อมูลสำนักงาน"""
+        """Update annotation information"""
         self.ui_handler.update_annotation_info()
-    
+
     def add_box_from_rect(self, rect):
-        """เพิ่มกล่อง Quad จาก rectangle"""
+        """Add Quad box from rectangle"""
         self.ui_handler.add_box_from_rect(rect)
-    
+
     def add_polygon_from_points(self, points):
-        """เพิ่ม polygon จาก points"""
+        """Add polygon from points"""
         self.ui_handler.add_polygon_from_points(points)
-    
+
     # Table Handler
     def on_table_item_changed(self, item):
-        """เมื่อแก้ไขข้อมูลในตาราง (deprecated - handler จัดการเอง)"""
+        """When editing data in table (deprecated - handler manages itself)"""
         pass
-    
+
     def on_table_selection_changed(self):
-        """เมื่อเลือกแถวในตาราง (deprecated - handler จัดการเอง)"""
+        """When selecting row in table (deprecated - handler manages itself)"""
         pass
-    
+
     # Export Handler
     def save_labels(self, *args):
         """Export Detection Dataset"""
         self.export_handler.save_labels_detection()
-    
+
     def export_rec(self, *args):
         """Export Recognition Dataset"""
         self.export_handler.export_recognition()
-    
+
     # Rotation Handler
     def rotate_image(self, angle):
-        """หมุนรูปปัจจุบัน"""
+        """Rotate current image"""
         if hasattr(self, 'rotation_handler'):
             self.rotation_handler.rotate_current_image(angle)
-    
+
     def reset_rotation(self):
-        """รีเซ็ตการหมุนรูปปัจจุบัน"""
+        """Reset rotation of current image"""
         if hasattr(self, 'rotation_handler'):
             self.rotation_handler.reset_rotation()
     
     # ===== 🔒 Mask Handler Methods (NEW!) =====
-    
+
     def toggle_mask_mode(self, checked):
-        """เปิด/ปิดโหมด Masking"""
+        """Toggle Masking mode"""
         self.mask_mode = checked
-        
-        # ปิด draw_mode ถ้าเปิด mask_mode
+
+        # Close draw_mode if opening mask_mode
         if checked and self.draw_mode:
             self.draw_mode = False
             if hasattr(self, 'draw_action'):
                 self.draw_action.setChecked(False)
-        
-        # แสดง/ซ่อนปุ่มเลือกสี
+
+        # Show/hide color selection button
         if hasattr(self, 'mask_color_btn'):
             self.mask_color_btn.setVisible(checked)
-            # อัปเดตปุ่มแสดงสีปัจจุบัน
+            # Update button showing current color
             if checked:
                 self.mask_handler._update_color_button()
-        
-        # อัปเดต mode combo
+
+        # Update mode combo
         if hasattr(self, 'mode_combo'):
             if checked:
                 self.mode_combo.setCurrentText("Masking")
             else:
                 self.mode_combo.setCurrentText("Annotation")
-        
+
         logger.info(f"Mask mode: {'ON' if checked else 'OFF'}")
-    
+
     def on_mode_changed(self, mode_text):
-        """เมื่อเปลี่ยน mode จาก combo box"""
+        """When changing mode from combo box"""
         if mode_text == "Masking":
-            # เปิด mask mode
+            # Open mask mode
             if hasattr(self, 'mask_action'):
                 self.mask_action.setChecked(True)
             self.mask_mode = True
             self.draw_mode = False
             if hasattr(self, 'draw_action'):
                 self.draw_action.setChecked(False)
-            # แสดงปุ่มเลือกสี
+            # Show color selection button
             if hasattr(self, 'mask_color_btn'):
                 self.mask_color_btn.setVisible(True)
                 self.mask_handler._update_color_button()
         else:  # Annotation
-            # ปิด mask mode
+            # Close mask mode
             if hasattr(self, 'mask_action'):
                 self.mask_action.setChecked(False)
             self.mask_mode = False
-            # ซ่อนปุ่มเลือกสี
+            # Hide color selection button
             if hasattr(self, 'mask_color_btn'):
                 self.mask_color_btn.setVisible(False)
-    
+
     def add_mask_from_rect(self, rect):
-        """เพิ่ม Quad Mask จาก rectangle"""
+        """Add Quad Mask from rectangle"""
         self.mask_handler.add_mask_from_rect(rect)
-    
+
     def add_mask_from_points(self, points):
-        """เพิ่ม Polygon Mask จาก points"""
+        """Add Polygon Mask from points"""
         self.mask_handler.add_mask_from_points(points)
-    
+
     def choose_mask_color(self):
-        """เปิด color picker เพื่อเลือกสี mask"""
+        """Open color picker to select mask color"""
         self.mask_handler.choose_mask_color()
-    
+
     def change_selected_mask_color(self):
-        """เปลี่ยนสีของ mask ที่เลือกอยู่"""
+        """Change color of selected mask"""
         self.mask_handler.change_selected_mask_color()
-    
+
     def set_mask_color_preset(self, preset_name):
-        """ตั้งค่าสีจาก preset"""
+        """Set color from preset"""
         self.mask_handler.set_mask_color_preset(preset_name)
-    
+
     # ===== Event Handlers =====
-    
+
     def closeEvent(self, event):
-        """เมื่อปิดโปรแกรม"""
+        """When closing program"""
         QtWidgets.QApplication.processEvents()
-        
-        # บันทึก workspace
+
+        # Save workspace
         if self.workspace_handler.current_workspace_id:
             self.workspace_handler.save_workspace()
-        
+
         super().closeEvent(event)
         logger.info("Application closed")

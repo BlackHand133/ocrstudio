@@ -5,8 +5,8 @@ from PyQt5.QtCore import Qt, QLocale
 
 class SplitConfigDialog(QtWidgets.QDialog):
     """
-    Dialog สำหรับกำหนดค่าการแบ่งข้อมูล
-    รองรับ train/test/valid แบบยืดหยุ่น
+    Dialog for configuring data split
+    Flexibly supports train/test/valid
     """
     
     def __init__(self, parent=None, mode='detection', total_items=0):
@@ -192,7 +192,7 @@ class SplitConfigDialog(QtWidgets.QDialog):
             self.check_length.toggled.connect(self.combo_length.setEnabled)
     
     def _on_method_changed(self):
-        """สลับระหว่าง percentage และ count"""
+        """Switch between percentage and count"""
         is_percentage = self.radio_percentage.isChecked()
         
         self.spin_train_pct.setEnabled(is_percentage)
@@ -204,36 +204,36 @@ class SplitConfigDialog(QtWidgets.QDialog):
         self.spin_valid_count.setEnabled(not is_percentage)
     
     def get_config(self) -> dict:
-        """รับค่า config ที่ผู้ใช้เลือก"""
+        """Get user-selected config"""
         config = {
             'method': 'percentage' if self.radio_percentage.isChecked() else 'count',
             'splits': {},
             'seed': self.spin_seed.value() if self.check_seed.isChecked() else None,
             'advanced': {}
         }
-        
+
         # Splits
         if self.check_train.isChecked():
             if config['method'] == 'percentage':
                 config['splits']['train'] = self.spin_train_pct.value()
             else:
                 config['splits']['train'] = self.spin_train_count.value()
-        
+
         if self.check_test.isChecked():
             if config['method'] == 'percentage':
                 config['splits']['test'] = self.spin_test_pct.value()
             else:
                 config['splits']['test'] = self.spin_test_count.value()
-        
+
         if self.check_valid.isChecked():
             if config['method'] == 'percentage':
                 config['splits']['valid'] = self.spin_valid_pct.value()
             else:
                 config['splits']['valid'] = self.spin_valid_count.value()
-        
+
         # Validation
         if not config['splits']:
-            return None  # ไม่มี split ใดถูกเลือก
+            return None  # No split selected
         
         # Advanced options
         if self.mode == 'detection':
@@ -248,13 +248,13 @@ class SplitConfigDialog(QtWidgets.QDialog):
         return config
     
     def accept(self):
-        """Validate ก่อน accept"""
+        """Validate before accept"""
         config = self.get_config()
-        
+
         if config is None:
             QtWidgets.QMessageBox.warning(
                 self, "Warning",
-                "กรุณาเลือกอย่างน้อย 1 dataset split (Train/Test/Valid)"
+                "Please select at least 1 dataset split (Train/Test/Valid)"
             )
             return
         

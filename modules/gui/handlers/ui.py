@@ -8,26 +8,26 @@ logger = logging.getLogger("TextDetGUI")
 
 class UIHandler:
     """
-    จัดการ UI interactions: draw mode, annotation type, etc.
+    Manage UI interactions: draw mode, annotation type, etc.
     """
-    
+
     def __init__(self, main_window):
         """
         Args:
-            main_window: reference ไปยัง MainWindow instance
+            main_window: reference to MainWindow instance
         """
         self.main_window = main_window
     
     def toggle_draw_mode(self, checked):
         """
-        เปิด/ปิดโหมดวาดกล่อง
-        
+        Toggle draw box mode
+
         Args:
-            checked: True = เปิด, False = ปิด
+            checked: True = enable, False = disable
         """
         self.main_window.draw_mode = checked
-        
-        # เปลี่ยน drag mode
+
+        # Change drag mode
         if checked:
             mode = QtWidgets.QGraphicsView.NoDrag
         else:
@@ -42,10 +42,10 @@ class UIHandler:
     
     def toggle_recog_mode(self, checked):
         """
-        เปิด/ปิดโหมด Recognition (แสดงตาราง)
-        
+        Toggle Recognition mode (show table)
+
         Args:
-            checked: True = เปิด, False = ปิด
+            checked: True = enable, False = disable
         """
         self.main_window.recog_mode = checked
         self.main_window.table.setVisible(checked)
@@ -60,15 +60,15 @@ class UIHandler:
     
     def on_annotation_type_changed(self, new_type):
         """
-        เปลี่ยนประเภท annotation
-        
+        Change annotation type
+
         Args:
-            new_type: 'Quad' หรือ 'Polygon'
+            new_type: 'Quad' or 'Polygon'
         """
         self.main_window.annotation_type = new_type
         self.update_annotation_info()
-        
-        # ปิด draw mode เมื่อเปลี่ยนประเภท
+
+        # Disable draw mode when changing type
         if hasattr(self.main_window, 'draw_action'):
             self.main_window.draw_action.setChecked(False)
             self.main_window.draw_mode = False
@@ -76,7 +76,7 @@ class UIHandler:
         logger.debug(f"Annotation type changed to: {new_type}")
     
     def update_annotation_info(self):
-        """อัปเดตข้อมูลคำแนะนำการใช้งาน"""
+        """Update instruction information"""
         if not hasattr(self.main_window, 'annotation_info_label'):
             return
         
@@ -89,8 +89,8 @@ class UIHandler:
     
     def add_box_from_rect(self, rect):
         """
-        เพิ่มกล่อง Quad จาก rectangle
-        
+        Add Quad box from rectangle
+
         Args:
             rect: QRectF object
         """
@@ -100,10 +100,10 @@ class UIHandler:
             [rect.x() + rect.width(), rect.y() + rect.height()],
             [rect.x(), rect.y() + rect.height()],
         ]
-        
+
         self.main_window.annotation_handler.add_box_item(pts, "", 'Quad')
-        
-        # อัปเดตตารางถ้าอยู่ใน recog mode
+
+        # Update table if in recog mode
         if self.main_window.recog_mode:
             self.main_window.table_handler.populate_table()
         
@@ -111,14 +111,14 @@ class UIHandler:
     
     def add_polygon_from_points(self, points):
         """
-        เพิ่ม polygon จาก points
-        
+        Add polygon from points
+
         Args:
             points: list of points [[x1,y1], [x2,y2], ...]
         """
         self.main_window.annotation_handler.add_box_item(points, "", 'Polygon')
-        
-        # อัปเดตตารางถ้าอยู่ใน recog mode
+
+        # Update table if in recog mode
         if self.main_window.recog_mode:
             self.main_window.table_handler.populate_table()
         

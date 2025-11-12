@@ -7,7 +7,7 @@ from datetime import datetime
 
 class VersionManagerDialog(QtWidgets.QDialog):
     """
-    Dialog สำหรับจัดการ Version ทั้งหมด
+    Dialog for managing all Versions
     """
 
     def __init__(self, workspace_handler, parent=None):
@@ -22,7 +22,7 @@ class VersionManagerDialog(QtWidgets.QDialog):
         self._load_versions()
 
     def _init_ui(self):
-        """สร้าง UI"""
+        """Create UI"""
         layout = QtWidgets.QVBoxLayout(self)
 
         # ===== Title =====
@@ -92,7 +92,7 @@ class VersionManagerDialog(QtWidgets.QDialog):
         layout.addLayout(button_layout)
 
     def _load_versions(self):
-        """โหลดรายการ version"""
+        """Load version list"""
         self.version_table.setRowCount(0)
 
         versions = self.workspace_handler.get_version_list()
@@ -102,7 +102,7 @@ class VersionManagerDialog(QtWidgets.QDialog):
         if not versions:
             return
 
-        # เรียงตาม version
+        # Sort by version
         versions.sort(key=lambda x: x.get('version', ''))
 
         for version_data in versions:
@@ -168,7 +168,7 @@ class VersionManagerDialog(QtWidgets.QDialog):
         self.version_table.resizeColumnsToContents()
 
     def _on_selection_changed(self):
-        """เมื่อเลือก version"""
+        """When version is selected"""
         selected_rows = self.version_table.selectedItems()
 
         if not selected_rows:
@@ -184,7 +184,7 @@ class VersionManagerDialog(QtWidgets.QDialog):
         if not version_data:
             return
 
-        # แสดงข้อมูล
+        # Show information
         self.info_version.setText(version_data.get('version', '-'))
         self.info_description.setText(version_data.get('description', '-'))
 
@@ -207,17 +207,17 @@ class VersionManagerDialog(QtWidgets.QDialog):
         except:
             self.info_modified.setText(modified)
 
-        # เปิด/ปิดปุ่ม
+        # Enable/disable buttons
         is_current = version_data.get('is_current', False)
 
-        # Switch button: เปิดถ้าไม่ใช่ current version
+        # Switch button: enable if not current version
         self.btn_switch.setEnabled(not is_current)
 
-        # Delete button: เปิดถ้าไม่ใช่ current version
+        # Delete button: enable if not current version
         self.btn_delete.setEnabled(not is_current)
 
     def switch_to_version(self):
-        """สลับไป version ที่เลือก"""
+        """Switch to selected version"""
         selected_rows = self.version_table.selectedItems()
         if not selected_rows:
             return
@@ -231,7 +231,7 @@ class VersionManagerDialog(QtWidgets.QDialog):
 
         version = version_data.get('version', '')
 
-        # ยืนยัน
+        # Confirm
         reply = QtWidgets.QMessageBox.question(
             self,
             "Switch Version",
@@ -257,7 +257,7 @@ class VersionManagerDialog(QtWidgets.QDialog):
                 )
 
     def delete_version(self):
-        """ลบ version ที่เลือก"""
+        """Delete selected version"""
         selected_rows = self.version_table.selectedItems()
         if not selected_rows:
             return
@@ -274,7 +274,7 @@ class VersionManagerDialog(QtWidgets.QDialog):
         metadata = version_data.get('metadata', {})
         total_annotations = metadata.get('total_annotations', 0)
 
-        # ยืนยันการลบ
+        # Confirm deletion
         reply = QtWidgets.QMessageBox.question(
             self,
             "Delete Version",

@@ -7,9 +7,9 @@ from modules.logger import setup_logging
 from modules.gui.main_window import MainWindow
 
 def main():
-    # คำนวณ root project
+    # Calculate root project directory
     root = os.path.dirname(os.path.abspath(__file__))
-    # ตั้งค่า logging
+    # Setup logging
     setup_logging(root)
 
     app = QtWidgets.QApplication(sys.argv)

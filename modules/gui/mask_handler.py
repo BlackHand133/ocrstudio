@@ -1,7 +1,7 @@
 # modules/gui/mask_handler.py
 """
-Mask Handler สำหรับจัดการการปกปิดข้อมูล (Masking/Redaction)
-รองรับการเพิ่ม mask items ทั้ง Quad และ Polygon
+Mask Handler for managing data masking/redaction
+Supports adding both Quad and Polygon mask items
 """
 
 import logging
@@ -12,66 +12,66 @@ logger = logging.getLogger("TextDetGUI")
 
 
 class MaskHandler:
-    """จัดการ Mask Operations"""
-    
+    """Manage Mask Operations"""
+
     def __init__(self, mainwin):
         self.mainwin = mainwin
-        # สีที่เลือกสำหรับ mask (ค่าเริ่มต้นเป็นสีดำ)
+        # Selected color for mask (default is black)
         self.current_mask_color = QtGui.QColor(0, 0, 0, 255)
     
     def add_mask_from_rect(self, rect):
-        """เพิ่ม Quad Mask จาก rectangle"""
+        """Add Quad Mask from rectangle"""
         if not self.mainwin.img_key:
             return
-        
+
         from modules.gui.items.mask_item import MaskQuadItem
-        
-        # แปลง rect เป็น 4 จุด
+
+        # Convert rect to 4 points
         x1, y1 = rect.left(), rect.top()
         x2, y2 = rect.right(), rect.bottom()
         pts = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
-        
-        # สร้าง mask item
+
+        # Create mask item
         mask = MaskQuadItem(pts, self.current_mask_color)
         self.mainwin.scene.addItem(mask)
         self.mainwin.box_items.append(mask)
-        
-        # เพิ่มเข้า annotations
+
+        # Add to annotations
         key = self.mainwin.img_key
         if key not in self.mainwin.annotations:
             self.mainwin.annotations[key] = []
         self.mainwin.annotations[key].append(mask)
         
-        # อัปเดต UI
+        # Update UI
         self._update_ui()
         
         logger.info(f"Added quad mask with color {self.current_mask_color.name()}")
     
     def add_mask_from_points(self, points):
-        """เพิ่ม Polygon Mask จาก points"""
+        """Add Polygon Mask from points"""
         if not self.mainwin.img_key:
             return
-        
+
         from modules.gui.items.mask_item import MaskPolygonItem
-        
-        # สร้าง mask item
+
+        # Create mask item
         mask = MaskPolygonItem(points, self.current_mask_color)
         self.mainwin.scene.addItem(mask)
         self.mainwin.box_items.append(mask)
-        
-        # เพิ่มเข้า annotations
+
+        # Add to annotations
         key = self.mainwin.img_key
         if key not in self.mainwin.annotations:
             self.mainwin.annotations[key] = []
         self.mainwin.annotations[key].append(mask)
-        
-        # อัปเดต UI
+
+        # Update UI
         self._update_ui()
         
         logger.info(f"Added polygon mask with color {self.current_mask_color.name()}")
     
     def choose_mask_color(self):
-        """เปิด color picker เพื่อเลือกสี mask"""
+        """Open color picker to select mask color"""
         color = QtWidgets.QColorDialog.getColor(
             self.current_mask_color,
             self.mainwin,
@@ -82,16 +82,16 @@ class MaskHandler:
         if color.isValid():
             self.current_mask_color = color
             logger.info(f"Mask color changed to {color.name()}")
-            
-            # อัปเดตปุ่มแสดงสี
+
+            # Update color button
             if hasattr(self.mainwin, 'mask_color_btn'):
                 self._update_color_button()
     
     def _update_color_button(self):
-        """อัปเดตปุ่มแสดงสีปัจจุบัน"""
+        """Update button showing current color"""
         if hasattr(self.mainwin, 'mask_color_btn'):
             color = self.current_mask_color
-            # สร้าง style ที่แสดงสีพื้นหลัง
+            # Create style showing background color
             text_color = "white" if color.lightness() < 128 else "black"
             self.mainwin.mask_color_btn.setStyleSheet(f"""
                 QPushButton {{
@@ -109,12 +109,12 @@ class MaskHandler:
             self.mainwin.mask_color_btn.setText(f"🎨 Color: {color.name()}")
     
     def _update_ui(self):
-        """อัปเดต UI หลังเพิ่ม mask"""
-        # อัปเดต annotation info
+        """Update UI after adding mask"""
+        # Update annotation info
         if hasattr(self.mainwin, 'update_annotation_info'):
             self.mainwin.update_annotation_info()
-        
-        # มาร์กว่ามี annotation แล้ว
+
+        # Mark as having annotation
         if hasattr(self.mainwin, 'icon_marked') and hasattr(self.mainwin, 'list_widget'):
             key = self.mainwin.img_key
             for i in range(self.mainwin.list_widget.count()):
@@ -125,13 +125,13 @@ class MaskHandler:
                     break
     
     def change_selected_mask_color(self):
-        """เปลี่ยนสีของ mask ที่เลือกอยู่"""
-        # หา mask items ที่ถูกเลือก
+        """Change color of selected mask"""
+        # Find selected mask items
         selected_items = self.mainwin.scene.selectedItems()
         mask_items = []
         
         for item in selected_items:
-            if hasattr(item, 'set_mask_color'):  # ตรวจสอบว่าเป็น mask item
+            if hasattr(item, 'set_mask_color'):  # Check if it's a mask item
                 mask_items.append(item)
         
         if not mask_items:
@@ -141,8 +141,8 @@ class MaskHandler:
                 "Please select one or more mask items to change their color."
             )
             return
-        
-        # เลือกสีใหม่
+
+        # Select new color
         color = QtWidgets.QColorDialog.getColor(
             self.current_mask_color,
             self.mainwin,
@@ -151,7 +151,7 @@ class MaskHandler:
         )
         
         if color.isValid():
-            # เปลี่ยนสีของ mask ที่เลือก
+            # Change color of selected masks
             for mask in mask_items:
                 mask.set_mask_color(color)
             
@@ -164,17 +164,17 @@ class MaskHandler:
             )
     
     def get_mask_presets(self):
-        """คืนค่าสีที่ใช้บ่อย"""
+        """Return commonly used colors"""
         return {
             'Black': QtGui.QColor(0, 0, 0, 255),
             'White': QtGui.QColor(255, 255, 255, 255),
             'Gray': QtGui.QColor(128, 128, 128, 255),
             'Red': QtGui.QColor(255, 0, 0, 255),
-            'Blur': QtGui.QColor(200, 200, 200, 200),  # สีเทาโปร่งใสนิดหน่อย
+            'Blur': QtGui.QColor(200, 200, 200, 200),  # Semi-transparent gray
         }
     
     def set_mask_color_preset(self, preset_name):
-        """ตั้งค่าสีจาก preset"""
+        """Set color from preset"""
         presets = self.get_mask_presets()
         if preset_name in presets:
             self.current_mask_color = presets[preset_name]

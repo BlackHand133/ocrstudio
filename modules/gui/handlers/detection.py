@@ -9,7 +9,7 @@ logger = logging.getLogger("TextDetGUI")
 
 
 def is_valid_box(pts):
-    """ตรวจสอบว่า points ถูกต้องหรือไม่"""
+    """Check if points are valid"""
     if not (isinstance(pts, list) and len(pts) >= 4):
         return False
     for p in pts:
@@ -20,46 +20,46 @@ def is_valid_box(pts):
 
 class DetectionHandler:
     """
-    จัดการ Auto Detection ด้วย PaddleOCR
+    Manage Auto Detection with PaddleOCR
     """
-    
+
     def __init__(self, main_window):
         """
         Args:
-            main_window: reference ไปยัง MainWindow instance
+            main_window: reference to MainWindow instance
         """
         self.main_window = main_window
     
     @handle_exceptions
     def auto_label_current(self):
-        """รัน auto detection สำหรับรูปปัจจุบัน"""
+        """Run auto detection for current image"""
         if not self.main_window.img_path:
             QtWidgets.QMessageBox.warning(
-                self.main_window, "Warning", "เลือกรูปก่อน"
+                self.main_window, "Warning", "Please select an image first"
             )
             return
-        
-        # ล้าง annotations เดิม
+
+        # Clear old annotations
         self.main_window.annotation_handler.clear_boxes()
-        
-        # แสดง cursor รอ
+
+        # Show wait cursor
         QtWidgets.QApplication.setOverrideCursor(Qt.WaitCursor)
         
         try:
-            # รัน detection
+            # Run detection
             items = self.main_window.detector.detect(self.main_window.img_path)
-            
-            # แสดงผลลัพธ์
+
+            # Display results
             self.main_window.annotation_handler.apply_detections(items)
-            
-            # บันทึก
+
+            # Save
             self.main_window.annotations[self.main_window.img_key] = sanitize_annotations(
                 [b.to_dict() for b in self.main_window.box_items]
             )
             self.main_window.annotation_handler.update_list_icon(self.main_window.img_key)
             self.main_window.workspace_handler.save_workspace()
-            
-            # อัปเดตตารางถ้าอยู่ใน recog mode
+
+            # Update table if in recog mode
             if self.main_window.recog_mode:
                 self.main_window.table_handler.populate_table()
             
@@ -70,10 +70,10 @@ class DetectionHandler:
     
     @handle_exceptions
     def auto_label_all(self):
-        """รัน auto detection สำหรับรูปทั้งหมด"""
+        """Run auto detection for all images"""
         if not self.main_window.image_items:
             QtWidgets.QMessageBox.warning(
-                self.main_window, "Warning", "Open Folder ก่อน"
+                self.main_window, "Warning", "Please open folder first"
             )
             return
         
@@ -85,14 +85,14 @@ class DetectionHandler:
             
             for key, full in self.main_window.image_items:
                 try:
-                    # รัน detection
+                    # Run detection
                     items = self.main_window.detector.detect(full)
-                    
-                    # Sanitize และเพิ่ม shape เป็น Polygon (เพื่อรักษาความสอดคล้องกับ auto_label_current)
+
+                    # Sanitize and add shape as Polygon (to maintain consistency with auto_label_current)
                     valid_items = []
                     for it in items:
                         if is_valid_box(it['points']):
-                            # เพิ่ม 'shape': 'Polygon' เพื่อให้ตรงกับ apply_detections()
+                            # Add 'shape': 'Polygon' to match apply_detections()
                             it['shape'] = 'Polygon'
                             valid_items.append(it)
                     
@@ -106,7 +106,7 @@ class DetectionHandler:
                     logger.error(f"Auto-label failed on {key}: {e}")
                     fail_count += 1
             
-            # บันทึก workspace
+            # Save workspace
             self.main_window.workspace_handler.save_workspace()
             
             logger.info(f"Auto-label all completed: {success_count} success, {fail_count} failed")
@@ -122,8 +122,8 @@ class DetectionHandler:
     
     @handle_exceptions
     def auto_label_selected(self):
-        """รัน auto detection สำหรับรูปที่ check (checkbox) ไว้เท่านั้น"""
-        # ดึงรายการรูปที่ถูก check ไว้
+        """Run auto detection for checked (checkbox) images only"""
+        # Get list of checked images
         checked_keys = []
         for i in range(self.main_window.list_widget.count()):
             item = self.main_window.list_widget.item(i)
@@ -132,10 +132,10 @@ class DetectionHandler:
         
         if not checked_keys:
             QtWidgets.QMessageBox.warning(
-                self.main_window, 
-                "Warning", 
-                "กรุณา Check (☑) รูปที่ต้องการทำ Auto Detection\n\n"
-                "หมายเหตุ: คลิก checkbox หน้ารูปเพื่อเลือก"
+                self.main_window,
+                "Warning",
+                "Please Check (☑) images for Auto Detection\n\n"
+                "Note: Click checkbox in front of image to select"
             )
             return
         
@@ -145,20 +145,20 @@ class DetectionHandler:
             success_count = 0
             fail_count = 0
             
-            # วนลูปเฉพาะรูปที่ check ไว้
+            # Loop only checked images
             for key, full in self.main_window.image_items:
                 if key not in checked_keys:
-                    continue  # ข้ามรูปที่ไม่ได้ check
-                
+                    continue  # Skip unchecked images
+
                 try:
-                    # รัน detection
+                    # Run detection
                     items = self.main_window.detector.detect(full)
-                    
-                    # Sanitize และเพิ่ม shape เป็น Polygon (เพื่อรักษาความสอดคล้องกับ auto_label_current)
+
+                    # Sanitize and add shape as Polygon (to maintain consistency with auto_label_current)
                     valid_items = []
                     for it in items:
                         if is_valid_box(it['points']):
-                            # เพิ่ม 'shape': 'Polygon' เพื่อให้ตรงกับ apply_detections()
+                            # Add 'shape': 'Polygon' to match apply_detections()
                             it['shape'] = 'Polygon'
                             valid_items.append(it)
                     
@@ -167,14 +167,14 @@ class DetectionHandler:
                     
                     success_count += 1
                     logger.debug(f"Auto-labeled {key}: {len(valid_items)} regions")
-                
+
                 except Exception as e:
                     logger.error(f"Auto-label failed on {key}: {e}")
                     fail_count += 1
-            
-            # บันทึก workspace
+
+            # Save workspace
             self.main_window.workspace_handler.save_workspace()
-            
+
             logger.info(f"Auto-label selected completed: {success_count} success, {fail_count} failed")
             
             QtWidgets.QMessageBox.information(

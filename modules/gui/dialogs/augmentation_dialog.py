@@ -5,8 +5,8 @@ from PyQt5.QtCore import Qt, QLocale
 
 class AugmentationDialog(QtWidgets.QDialog):
     """
-    Dialog สำหรับเลือก augmentation options
-    รองรับทั้ง Detection และ Recognition
+    Dialog for selecting augmentation options
+    Supports both Detection and Recognition
     """
     
     def __init__(self, parent=None, mode='detection'):
@@ -49,11 +49,11 @@ class AugmentationDialog(QtWidgets.QDialog):
         mode_layout = QtWidgets.QVBoxLayout()
         
         self.radio_combinatorial = QtWidgets.QRadioButton(
-            "Combinatorial (สร้างแยกแต่ละ augmentation)"
+            "Combinatorial (create separate augmentations)"
         )
         self.radio_combinatorial.setChecked(True)
         self.radio_sequential = QtWidgets.QRadioButton(
-            "Sequential (ใช้ augmentation พร้อมกันในภาพเดียว)"
+            "Sequential (apply multiple augmentations to same image)"
         )
         
         mode_layout.addWidget(self.radio_combinatorial)
@@ -75,9 +75,10 @@ class AugmentationDialog(QtWidgets.QDialog):
         
         # 3. Noise and Effects
         self._add_noise_section(scroll_layout)
-        
+
+
         if self.mode == 'recognition':
-            # 4. Text-specific (สำหรับ recognition)
+            # 4. Text-specific (for recognition)
             self._add_text_specific_section(scroll_layout)
         
         scroll_layout.addStretch()
@@ -299,7 +300,7 @@ class AugmentationDialog(QtWidgets.QDialog):
         layout.addWidget(group)
     
     def _add_text_specific_section(self, layout):
-        """Text-specific Adjustments (สำหรับ Recognition)"""
+        """Text-specific Adjustments (for Recognition)"""
         group = QtWidgets.QGroupBox("📝 Text-specific")
         group_layout = QtWidgets.QVBoxLayout()
         
@@ -320,19 +321,19 @@ class AugmentationDialog(QtWidgets.QDialog):
         layout.addWidget(group)
     
     def _sync_spin_slider(self, spinbox, slider):
-        """Sync spinbox กับ slider"""
+        """Sync spinbox with slider"""
         spinbox.valueChanged.connect(lambda v: slider.setValue(int(v)))
         slider.valueChanged.connect(lambda v: spinbox.setValue(float(v)))
     
     def get_config(self) -> dict:
-        """รับค่า config ที่ผู้ใช้เลือก"""
+        """Get user-selected config"""
         config = {
             'mode': 'combinatorial' if self.radio_combinatorial.isChecked() else 'sequential',
             'augmentations': [],
-            'target_splits': []  # เพิ่ม: splits ที่จะทำ augmentation
+            'target_splits': []  # Add: splits to apply augmentation
         }
-        
-        # เก็บ splits ที่เลือก
+
+        # Store selected splits
         if self.check_aug_train.isChecked():
             config['target_splits'].append('train')
         if self.check_aug_test.isChecked():
@@ -435,20 +436,20 @@ class AugmentationDialog(QtWidgets.QDialog):
         return config
     
     def accept(self):
-        """Validate ก่อน accept"""
+        """Validate before accept"""
         config = self.get_config()
-        
+
         if not config['augmentations']:
             QtWidgets.QMessageBox.warning(
                 self, "Warning",
-                "กรุณาเลือกอย่างน้อย 1 augmentation"
+                "Please select at least 1 augmentation"
             )
             return
-        
+
         if not config['target_splits']:
             QtWidgets.QMessageBox.warning(
                 self, "Warning",
-                "กรุณาเลือกอย่างน้อย 1 dataset split (Train/Test/Valid)"
+                "Please select at least 1 dataset split (Train/Test/Valid)"
             )
             return
         

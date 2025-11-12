@@ -2,9 +2,9 @@
 
 import logging
 from PyQt5 import QtWidgets, QtGui
-from modules.gui.items.box_item import BoxItem
-from modules.gui.items.polygon_item import PolygonItem
-from modules.gui.items.mask_item import MaskQuadItem, MaskPolygonItem
+from modules.gui.box_item import BoxItem
+from modules.gui.polygon_item import PolygonItem
+from modules.gui.mask_item import MaskQuadItem, MaskPolygonItem
 from modules.utils import sanitize_annotations
 
 logger = logging.getLogger("TextDetGUI")

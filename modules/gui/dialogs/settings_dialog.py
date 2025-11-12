@@ -10,26 +10,26 @@ logger = logging.getLogger("TextDetGUI")
 
 class SettingsDialog(QtWidgets.QDialog):
     """
-    Dialog สำหรับตั้งค่าโปรแกรม
+    Dialog for application settings
     - OCR Settings (Profile, PaddleOCR parameters)
     - Application Settings
     """
 
-    # Signal เมื่อ settings เปลี่ยนแปลง
+    # Signal when settings change
     settings_changed = QtCore.pyqtSignal()
 
     def __init__(self, config_loader: ConfigLoader, parent=None):
         super().__init__(parent)
         self.config_loader = config_loader
 
-        # เก็บ config เดิมสำหรับ Cancel
+        # Store original config for Cancel
         self.original_config = copy.deepcopy(self.config_loader._config)
 
         self.init_ui()
         self.load_current_settings()
 
     def init_ui(self):
-        """สร้าง UI"""
+        """Create UI"""
         self.setWindowTitle("Settings")
         self.setModal(True)
         self.resize(600, 500)
@@ -57,7 +57,7 @@ class SettingsDialog(QtWidgets.QDialog):
         layout.addWidget(button_box)
 
     def create_ocr_tab(self):
-        """สร้าง OCR Settings Tab"""
+        """Create OCR Settings Tab"""
         tab = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(tab)
 
@@ -65,14 +65,14 @@ class SettingsDialog(QtWidgets.QDialog):
         profile_group = QtWidgets.QGroupBox("Profile Selection")
         profile_layout = QtWidgets.QVBoxLayout()
 
-        # Radio buttons สำหรับ profile
-        self.profile_cpu_radio = QtWidgets.QRadioButton("CPU (แนะนำสำหรับความเสถียร)")
-        self.profile_gpu_radio = QtWidgets.QRadioButton("GPU (เร็วกว่า แต่ต้องมี CUDA)")
+        # Radio buttons for profile
+        self.profile_cpu_radio = QtWidgets.QRadioButton("CPU (recommended for stability)")
+        self.profile_gpu_radio = QtWidgets.QRadioButton("GPU (faster, requires CUDA)")
 
         profile_layout.addWidget(self.profile_cpu_radio)
         profile_layout.addWidget(self.profile_gpu_radio)
 
-        # GPU Settings (แสดงเมื่อเลือก GPU)
+        # GPU Settings (shown when GPU is selected)
         self.gpu_settings_widget = QtWidgets.QWidget()
         gpu_layout = QtWidgets.QFormLayout()
 
@@ -94,7 +94,7 @@ class SettingsDialog(QtWidgets.QDialog):
         self.gpu_settings_widget.setEnabled(False)
         profile_layout.addWidget(self.gpu_settings_widget)
 
-        # เชื่อม signal
+        # Connect signal
         self.profile_gpu_radio.toggled.connect(self.gpu_settings_widget.setEnabled)
 
         profile_group.setLayout(profile_layout)
@@ -128,25 +128,25 @@ class SettingsDialog(QtWidgets.QDialog):
         self.unclip_ratio_spin.setDecimals(1)
         ocr_layout.addRow("Unclip Ratio:", self.unclip_ratio_spin)
 
-        # Checkboxes สำหรับ features
-        self.use_doc_orientation_check = QtWidgets.QCheckBox("ตรวจจับการหมุนเอกสาร")
+        # Checkboxes for features
+        self.use_doc_orientation_check = QtWidgets.QCheckBox("Detect document rotation")
         ocr_layout.addRow("", self.use_doc_orientation_check)
 
-        self.use_doc_unwarping_check = QtWidgets.QCheckBox("แก้การบิดเบี้ยวของเอกสาร")
+        self.use_doc_unwarping_check = QtWidgets.QCheckBox("Fix document distortion")
         ocr_layout.addRow("", self.use_doc_unwarping_check)
 
-        self.use_textline_orientation_check = QtWidgets.QCheckBox("ตรวจจับการกลับหัวของข้อความ (แนะนำสำหรับ GPU)")
+        self.use_textline_orientation_check = QtWidgets.QCheckBox("Detect text line orientation (recommended for GPU)")
         ocr_layout.addRow("", self.use_textline_orientation_check)
 
         ocr_group.setLayout(ocr_layout)
         layout.addWidget(ocr_group)
 
-        # คำอธิบาย
+        # Description
         info_label = QtWidgets.QLabel(
-            "<small><b>หมายเหตุ:</b><br>"
-            "- Detection Threshold: ค่าสูง = ตรวจจับเข้มงวดขึ้น (0.5-0.9)<br>"
-            "- Unclip Ratio: ค่าสูง = ขยาย bounding box มากขึ้น (1.0-2.5)<br>"
-            "- การเปลี่ยน profile จะ reload OCR detector อัตโนมัติ</small>"
+            "<small><b>Note:</b><br>"
+            "- Detection Threshold: Higher value = stricter detection (0.5-0.9)<br>"
+            "- Unclip Ratio: Higher value = expand bounding box more (1.0-2.5)<br>"
+            "- Changing profile will reload OCR detector automatically</small>"
         )
         info_label.setWordWrap(True)
         layout.addWidget(info_label)
@@ -156,7 +156,7 @@ class SettingsDialog(QtWidgets.QDialog):
         self.tab_widget.addTab(tab, "OCR Settings")
 
     def create_app_tab(self):
-        """สร้าง Application Settings Tab"""
+        """Create Application Settings Tab"""
         tab = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(tab)
 
@@ -164,10 +164,10 @@ class SettingsDialog(QtWidgets.QDialog):
         app_group = QtWidgets.QGroupBox("Application Settings")
         app_layout = QtWidgets.QVBoxLayout()
 
-        self.auto_save_check = QtWidgets.QCheckBox("Auto Save (บันทึกอัตโนมัติเมื่อมีการเปลี่ยนแปลง)")
+        self.auto_save_check = QtWidgets.QCheckBox("Auto Save (automatically save when changes occur)")
         app_layout.addWidget(self.auto_save_check)
 
-        self.cache_annotations_check = QtWidgets.QCheckBox("Cache Annotations (เก็บ cache เพื่อความเร็ว)")
+        self.cache_annotations_check = QtWidgets.QCheckBox("Cache Annotations (store cache for speed)")
         app_layout.addWidget(self.cache_annotations_check)
 
         app_group.setLayout(app_layout)
@@ -193,9 +193,9 @@ class SettingsDialog(QtWidgets.QDialog):
         self.tab_widget.addTab(tab, "Application")
 
     def load_current_settings(self):
-        """โหลดค่า settings ปัจจุบัน"""
+        """Load current settings"""
         try:
-            # โหลด default profile
+            # Load default profile
             default_profile = self.config_loader.get_default_profile_name()
 
             if default_profile == "cpu":
@@ -203,7 +203,7 @@ class SettingsDialog(QtWidgets.QDialog):
             elif default_profile == "gpu":
                 self.profile_gpu_radio.setChecked(True)
 
-            # โหลด profile config
+            # Load profile config
             profile_config = self.config_loader.get_profile(default_profile)
 
             # GPU Settings
@@ -239,9 +239,9 @@ class SettingsDialog(QtWidgets.QDialog):
             )
 
     def apply_settings(self):
-        """บันทึก settings ลง config"""
+        """Save settings to config"""
         try:
-            # กำหนด profile ที่เลือก
+            # Determine selected profile
             if self.profile_cpu_radio.isChecked():
                 profile_name = "cpu"
             elif self.profile_gpu_radio.isChecked():
@@ -249,19 +249,19 @@ class SettingsDialog(QtWidgets.QDialog):
             else:
                 profile_name = "cpu"
 
-            # เปลี่ยน default profile
+            # Change default profile
             old_profile = self.config_loader.get_default_profile_name()
             self.config_loader.set_default_profile(profile_name)
 
-            # อัปเดต profile config
+            # Update profile config
             profile_config = self.config_loader._config['profiles'][profile_name]
 
-            # อัปเดต GPU settings (ถ้าเลือก GPU)
+            # Update GPU settings (if GPU is selected)
             if profile_name == "gpu":
                 profile_config['device']['gpu_id'] = self.gpu_id_spin.value()
                 profile_config['device']['gpu_mem'] = self.gpu_mem_spin.value()
 
-            # อัปเดต PaddleOCR settings
+            # Update PaddleOCR settings
             ocr_config = profile_config['paddleocr']
             ocr_config['lang'] = self.lang_combo.currentText()
             ocr_config['det_db_box_thresh'] = self.det_thresh_spin.value()
@@ -269,21 +269,21 @@ class SettingsDialog(QtWidgets.QDialog):
             ocr_config['use_doc_orientation_classify'] = self.use_doc_orientation_check.isChecked()
             ocr_config['use_doc_unwarping'] = self.use_doc_unwarping_check.isChecked()
             ocr_config['use_textline_orientation'] = self.use_textline_orientation_check.isChecked()
-            ocr_config['device'] = profile_name  # ต้องตรงกับ profile
+            ocr_config['device'] = profile_name  # Must match profile
 
-            # อัปเดต App settings
+            # Update App settings
             app_config = self.config_loader._config.get('app', {})
             app_config['auto_save'] = self.auto_save_check.isChecked()
             app_config['cache_annotations'] = self.cache_annotations_check.isChecked()
             self.config_loader._config['app'] = app_config
 
-            # บันทึกลงไฟล์
+            # Save to file
             self.config_loader.save()
 
-            # Emit signal ว่า settings เปลี่ยน
+            # Emit signal that settings changed
             self.settings_changed.emit()
 
-            # แจ้งเตือนถ้าเปลี่ยน profile
+            # Notify if profile changed
             if old_profile != profile_name:
                 QtWidgets.QMessageBox.information(
                     self,
@@ -303,12 +303,12 @@ class SettingsDialog(QtWidgets.QDialog):
             )
 
     def accept(self):
-        """OK button - บันทึกและปิด"""
+        """OK button - save and close"""
         self.apply_settings()
         super().accept()
 
     def reject(self):
-        """Cancel button - ยกเลิกและคืนค่าเดิม"""
+        """Cancel button - cancel and restore original values"""
         # Restore original config
         self.config_loader._config = self.original_config
         logger.info("Settings cancelled. Config restored.")

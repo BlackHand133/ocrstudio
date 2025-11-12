@@ -1,0 +1,211 @@
+# ===== Python =====
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# ===== IDEs and Editors =====
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+*.swp
+*.swo
+*~
+
+# ===== Operating System =====
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ===== Project Specific =====
+
+# User Data (workspaces, annotations, images)
+workspaces/
+data/workspaces/
+output/
+output_det/
+output_rec/
+exports/
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+nul
+
+# Backup files
+back-up/
+backup/
+*.bak
+*~
+
+# Test files (unless specifically needed)
+test_*.py
+*_test.py
+
+# Recent workspaces (user-specific)
+recent_workspaces.json
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Cache
+cache/
+*.cache
+
+# ===== Models (Use Git LFS for large models) =====
+# Downloaded PaddleOCR models (these should be in LFS if committed)
+# models/*.pdmodel
+# models/*.pdiparams
+# models/*.nb
+
+# ===== Documentation Build =====
+docs/_build/
+docs/.doctrees/
+
+# ===== Miscellaneous =====
+*.pid
+*.seed
+*.pid.lock
+.editorconfig
+new_stricture.txt
+
+# Thai/Unicode named folders (encoding issues)
+*[^\x00-\x7F]*
+
+# Specific files to ignore
+nul
+
+# DO NOT ignore git config files themselves
+!.gitignore
+!.gitattributes

@@ -36,7 +36,7 @@ class DetectionExporter(BaseExporter):
     """
 
     def export(self, folder_name: str, split_config: Dict,
-               aug_config: Optional[Dict] = None) -> bool:
+               aug_config: Optional[Dict] = None, image_format: str = 'png') -> bool:
         """
         Export detection dataset.
 
@@ -44,6 +44,7 @@ class DetectionExporter(BaseExporter):
             folder_name: Output folder name
             split_config: Split configuration
             aug_config: Augmentation configuration (optional)
+            image_format: Image format ('png' or 'jpg', default: 'png')
 
         Returns:
             bool: True if successful
@@ -74,7 +75,7 @@ class DetectionExporter(BaseExporter):
 
             # Export dataset
             success = self._export_detection_dataset(
-                folder_name, split_result, split_config, pipeline, aug_config
+                folder_name, split_result, split_config, pipeline, aug_config, image_format
             )
 
             return success
@@ -89,7 +90,7 @@ class DetectionExporter(BaseExporter):
 
     def _export_detection_dataset(self, folder_name: str, split_result: Dict,
                                   config: Dict, pipeline: Optional[AugmentationPipeline],
-                                  aug_config: Optional[Dict]) -> bool:
+                                  aug_config: Optional[Dict], image_format: str = 'png') -> bool:
         """
         Export detection dataset with all files.
 
@@ -99,6 +100,7 @@ class DetectionExporter(BaseExporter):
             config: Split configuration
             pipeline: Augmentation pipeline (optional)
             aug_config: Augmentation configuration (optional)
+            image_format: Image format ('png' or 'jpg', default: 'png')
 
         Returns:
             bool: True if successful
@@ -172,10 +174,12 @@ class DetectionExporter(BaseExporter):
                 clean_key = sanitize_filename(
                     key.replace('.jpg', '').replace('.jpeg', '')
                        .replace('.png', '').replace('.bmp', '')
+                       .replace('.jfif', '').replace('.tiff', '').replace('.tif', '')
+                       .replace('.webp', '').replace('.gif', '').replace('.ico', '')
                 )
-                img_filename = f"{clean_key}.jpg"
+                img_filename = f"{clean_key}.{image_format}"
                 img_save_path = os.path.join(split_dirs[split_name], img_filename)
-                success = imwrite_unicode(img_save_path, img)
+                success = imwrite_unicode(img_save_path, img, image_format=image_format)
 
                 if not success:
                     logger.error(f"Failed to write image: {img_save_path}")
@@ -197,10 +201,10 @@ class DetectionExporter(BaseExporter):
                             for aug_img, aug_bboxes, aug_name in aug_results:
                                 # Sanitize augmentation name
                                 clean_aug_name = sanitize_filename(aug_name.replace('.', '_'))
-                                aug_filename = f"{clean_key}_{clean_aug_name}.jpg"
+                                aug_filename = f"{clean_key}_{clean_aug_name}.{image_format}"
                                 aug_save_path = os.path.join(split_dirs[split_name], aug_filename)
 
-                                success = imwrite_unicode(aug_save_path, aug_img)
+                                success = imwrite_unicode(aug_save_path, aug_img, image_format=image_format)
 
                                 if not success:
                                     logger.error(f"Failed to write augmented image: {aug_save_path}")

@@ -32,7 +32,22 @@ ANNOTATION_TYPE_POLYGON = "Polygon"
 ANNOTATION_TYPE_MASK = "Mask"
 
 # ===== File Extensions =====
-IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp']
+# Supported image formats (Qt5 and OpenCV compatible)
+IMAGE_EXTENSIONS = [
+    # Core formats (most common)
+    '.jpg', '.jpeg', '.png', '.bmp',
+    # Extended formats (recommended)
+    '.jfif', '.tiff', '.tif', '.webp', '.gif', '.ico',
+    # Advanced formats (optional, for special use cases)
+    '.jp2', '.dib', '.pbm', '.pgm', '.ppm', '.tga'
+]
+
+# Export format options
+EXPORT_IMAGE_FORMAT_PNG = 'png'
+EXPORT_IMAGE_FORMAT_JPG = 'jpg'
+EXPORT_IMAGE_FORMATS = [EXPORT_IMAGE_FORMAT_PNG, EXPORT_IMAGE_FORMAT_JPG]
+DEFAULT_EXPORT_IMAGE_FORMAT = EXPORT_IMAGE_FORMAT_PNG
+
 LABEL_EXTENSION = '.txt'
 JSON_EXTENSION = '.json'
 YAML_EXTENSION = '.yaml'

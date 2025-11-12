@@ -15,6 +15,7 @@ from modules.export.recognition import RecognitionExporter
 from modules.gui.dialogs.split_config_dialog import SplitConfigDialog
 from modules.gui.dialogs.augmentation_dialog import AugmentationDialog
 from modules.utils import handle_exceptions
+from modules.constants import DEFAULT_EXPORT_IMAGE_FORMAT
 
 logger = logging.getLogger("TextDetGUI")
 
@@ -85,6 +86,11 @@ class ExportHandler:
         if not config:
             return
 
+        # Get image format selection
+        image_format = self._show_format_selection_dialog()
+        if image_format is None:
+            return  # User cancelled
+
         # Get augmentation configuration
         aug_config = None
         reply = QtWidgets.QMessageBox.question(
@@ -99,7 +105,7 @@ class ExportHandler:
                 aug_config = aug_dialog.result
 
         # Delegate to DetectionExporter
-        self.detection_exporter.export(folder_name, config, aug_config)
+        self.detection_exporter.export(folder_name, config, aug_config, image_format)
 
     @handle_exceptions
     def export_recognition(self):
@@ -154,6 +160,11 @@ class ExportHandler:
         if not config:
             return
 
+        # Get image format selection
+        image_format = self._show_format_selection_dialog()
+        if image_format is None:
+            return  # User cancelled
+
         # Get augmentation configuration
         aug_config = None
         reply = QtWidgets.QMessageBox.question(
@@ -169,7 +180,7 @@ class ExportHandler:
 
         # Delegate to RecognitionExporter
         self.recognition_exporter.export(
-            folder_name, config, crop_method, auto_detect, aug_config
+            folder_name, config, crop_method, auto_detect, aug_config, image_format
         )
 
     def _show_crop_method_dialog(self):
@@ -259,3 +270,86 @@ class ExportHandler:
             return crop_method, auto_detect
         else:
             return None, False
+
+    def _show_format_selection_dialog(self):
+        """
+        Show dialog to select image format for export.
+
+        Returns:
+            str: 'png' or 'jpg', or None if cancelled
+        """
+        dialog = QtWidgets.QDialog(self.main_window)
+        dialog.setWindowTitle("Image Format Selection")
+        dialog.setMinimumWidth(400)
+
+        layout = QtWidgets.QVBoxLayout()
+
+        # Title
+        title = QtWidgets.QLabel("<b>Select Export Image Format</b>")
+        layout.addWidget(title)
+
+        # Description
+        desc = QtWidgets.QLabel(
+            "Choose the image format for exported images:"
+        )
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        layout.addSpacing(10)
+
+        # Format selection group
+        format_group = QtWidgets.QGroupBox("Image Format")
+        format_layout = QtWidgets.QVBoxLayout()
+
+        # PNG option (default)
+        radio_png = QtWidgets.QRadioButton("PNG - Lossless (Recommended)")
+        radio_png.setChecked(True)  # Default to PNG
+        png_details = QtWidgets.QLabel(
+            "   • No quality loss\n"
+            "   • Larger file size\n"
+            "   • Best for training"
+        )
+        png_details.setStyleSheet("color: #666; margin-left: 20px;")
+
+        # JPG option
+        radio_jpg = QtWidgets.QRadioButton("JPG - Lossy (Smaller files)")
+        jpg_details = QtWidgets.QLabel(
+            "   • Some quality loss\n"
+            "   • Smaller file size\n"
+            "   • Quality: 95%"
+        )
+        jpg_details.setStyleSheet("color: #666; margin-left: 20px;")
+
+        format_layout.addWidget(radio_png)
+        format_layout.addWidget(png_details)
+        format_layout.addSpacing(10)
+        format_layout.addWidget(radio_jpg)
+        format_layout.addWidget(jpg_details)
+
+        format_group.setLayout(format_layout)
+        layout.addWidget(format_group)
+
+        layout.addSpacing(20)
+
+        # Buttons
+        button_layout = QtWidgets.QHBoxLayout()
+        btn_ok = QtWidgets.QPushButton("✅ OK")
+        btn_cancel = QtWidgets.QPushButton("❌ Cancel")
+
+        btn_ok.clicked.connect(dialog.accept)
+        btn_cancel.clicked.connect(dialog.reject)
+
+        button_layout.addStretch()
+        button_layout.addWidget(btn_ok)
+        button_layout.addWidget(btn_cancel)
+
+        layout.addLayout(button_layout)
+        dialog.setLayout(layout)
+
+        # Show dialog
+        result = dialog.exec_()
+
+        if result == QtWidgets.QDialog.Accepted:
+            return 'png' if radio_png.isChecked() else 'jpg'
+        else:
+            return None  # User cancelled

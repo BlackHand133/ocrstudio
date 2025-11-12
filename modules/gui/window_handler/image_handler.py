@@ -5,6 +5,7 @@ import logging
 from PyQt5 import QtWidgets, QtGui
 from PyQt5.QtCore import Qt, QRectF
 from modules.utils import sanitize_filename
+from modules.constants import IMAGE_EXTENSIONS
 
 logger = logging.getLogger("TextDetGUI")
 
@@ -36,7 +37,7 @@ class ImageHandler:
             return
 
         # Supported image extensions
-        exts = {'.jpg', '.jpeg', '.png', '.bmp'}
+        exts = set(IMAGE_EXTENSIONS)
         
         self.main_window.image_items.clear()
         self.main_window.list_widget.clear()

@@ -46,7 +46,7 @@ def imread_unicode(filepath: str) -> np.ndarray:
         return None
 
 
-def imwrite_unicode(filepath: str, img: np.ndarray, params=None) -> bool:
+def imwrite_unicode(filepath: str, img: np.ndarray, params=None, image_format: str = None) -> bool:
     """
     Write image with Unicode path support.
 
@@ -57,7 +57,9 @@ def imwrite_unicode(filepath: str, img: np.ndarray, params=None) -> bool:
         filepath: Output file path (supports Unicode)
         img: numpy array of image
         params: Encoding parameters (optional)
-                Default: JPEG quality 95
+                Default: JPEG quality 95 for JPG, PNG compression 3 for PNG
+        image_format: Image format override ('jpg' or 'png')
+                     If None, will detect from filepath extension
 
     Returns:
         True if successful, False otherwise
@@ -67,16 +69,37 @@ def imwrite_unicode(filepath: str, img: np.ndarray, params=None) -> bool:
         >>> success = imwrite_unicode("D:/รูปภาพ/output.jpg", img)
         >>> print(success)
         True
+
+        >>> # Force PNG format
+        >>> success = imwrite_unicode("D:/รูปภาพ/output.png", img, image_format='png')
+        >>> print(success)
+        True
     """
     try:
         # Get file extension
-        ext = filepath.split('.')[-1].lower()
-        if ext not in ['jpg', 'jpeg', 'png', 'bmp']:
+        if image_format:
+            ext = image_format.lower()
+        else:
+            ext = filepath.split('.')[-1].lower()
+
+        # Validate extension
+        if ext not in ['jpg', 'jpeg', 'png', 'bmp', 'jfif', 'tiff', 'tif', 'webp']:
             ext = 'jpg'
 
-        # Set default encoding params
+        # Set default encoding params based on format
         if params is None:
-            params = [int(cv2.IMWRITE_JPEG_QUALITY), 95]
+            if ext in ['jpg', 'jpeg', 'jfif']:
+                # JPEG: Quality 95 (0-100, higher = better quality)
+                params = [int(cv2.IMWRITE_JPEG_QUALITY), 95]
+            elif ext == 'png':
+                # PNG: Compression 3 (0-9, higher = smaller file but slower)
+                params = [int(cv2.IMWRITE_PNG_COMPRESSION), 3]
+            elif ext == 'webp':
+                # WebP: Quality 95
+                params = [int(cv2.IMWRITE_WEBP_QUALITY), 95]
+            else:
+                # Default for other formats
+                params = []
 
         # Encode image
         success, encoded = cv2.imencode(f'.{ext}', img, params)

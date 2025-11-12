@@ -60,7 +60,7 @@ class RecognitionExporter(BaseExporter):
 
     def export(self, folder_name: str, split_config: Dict,
                crop_method: str = 'rotated', auto_detect: bool = True,
-               aug_config: Optional[Dict] = None) -> bool:
+               aug_config: Optional[Dict] = None, image_format: str = 'png') -> bool:
         """
         Export recognition dataset.
 
@@ -70,6 +70,7 @@ class RecognitionExporter(BaseExporter):
             crop_method: 'rotated' or 'bbox'
             auto_detect: Auto-detect orientation
             aug_config: Augmentation configuration (optional)
+            image_format: Image format ('png' or 'jpg', default: 'png')
 
         Returns:
             bool: True if successful
@@ -116,7 +117,7 @@ class RecognitionExporter(BaseExporter):
             # Export dataset
             success = self._export_recognition_dataset(
                 folder_name, split_result, pipeline, aug_config,
-                crop_method, auto_detect
+                crop_method, auto_detect, image_format
             )
 
             return success
@@ -161,7 +162,8 @@ class RecognitionExporter(BaseExporter):
                                    pipeline: Optional[AugmentationPipeline],
                                    aug_config: Optional[Dict],
                                    crop_method: str = 'bbox',
-                                   auto_detect: bool = True) -> bool:
+                                   auto_detect: bool = True,
+                                   image_format: str = 'png') -> bool:
         """
         Export recognition dataset with all files.
 
@@ -172,6 +174,7 @@ class RecognitionExporter(BaseExporter):
             aug_config: Augmentation configuration (optional)
             crop_method: 'rotated' or 'bbox'
             auto_detect: Auto-detect orientation
+            image_format: Image format ('png' or 'jpg', default: 'png')
 
         Returns:
             bool: True if successful
@@ -275,11 +278,13 @@ class RecognitionExporter(BaseExporter):
                     clean_key = sanitize_filename(
                         key.replace('.jpg', '').replace('.jpeg', '')
                            .replace('.png', '').replace('.bmp', '')
+                           .replace('.jfif', '').replace('.tiff', '').replace('.tif', '')
+                           .replace('.webp', '').replace('.gif', '').replace('.ico', '')
                     )
-                    fn = f"{clean_key}_{idx}.jpg"
+                    fn = f"{clean_key}_{idx}.{image_format}"
                     path = os.path.join(split_dirs[split_name], fn)
 
-                    success = imwrite_unicode(path, crop_np)
+                    success = imwrite_unicode(path, crop_np, image_format=image_format)
 
                     if not success:
                         logger.error(f"Failed to write crop: {path}")
@@ -300,10 +305,10 @@ class RecognitionExporter(BaseExporter):
                                 for aug_img, _, aug_name in aug_results:
                                     # Sanitize augmentation name
                                     clean_aug_name = sanitize_filename(aug_name.replace('.', '_'))
-                                    aug_fn = f"{clean_key}_{idx}_{clean_aug_name}.jpg"
+                                    aug_fn = f"{clean_key}_{idx}_{clean_aug_name}.{image_format}"
                                     aug_path = os.path.join(split_dirs[split_name], aug_fn)
 
-                                    success = imwrite_unicode(aug_path, aug_img)
+                                    success = imwrite_unicode(aug_path, aug_img, image_format=image_format)
 
                                     if not success:
                                         logger.error(f"Failed to write augmented crop: {aug_path}")

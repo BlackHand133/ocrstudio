@@ -38,30 +38,41 @@ class ImageHandler:
 
         # Supported image extensions
         exts = set(IMAGE_EXTENSIONS)
-        
+
         self.main_window.image_items.clear()
         self.main_window.list_widget.clear()
-        
+
+        # Store root folder for relative path calculation
+        self.main_window.current_folder = folder
+
         idx = 1
         for root_dir, _, files in os.walk(folder):
             for fn in sorted(files):
                 if os.path.splitext(fn.lower())[1] in exts:
-                    # Sanitize filename to remove space and special characters
-                    clean_fn = sanitize_filename(fn)
-                    key = f"{idx:04d}_{clean_fn}"
                     full = os.path.join(root_dir, fn)
+
+                    # Use relative path as key (stable across folder changes)
+                    rel_path = os.path.relpath(full, folder)
+                    # Normalize path separators for cross-platform compatibility
+                    key = rel_path.replace(os.sep, '/')
+
                     self.main_window.image_items.append((key, full))
-                    
-                    item = QtWidgets.QListWidgetItem(key)
+
+                    # Display with index number for user convenience
+                    display_text = f"{idx:04d}: {key}"
+                    item = QtWidgets.QListWidgetItem(display_text)
                     item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
                     item.setCheckState(Qt.Checked)
 
+                    # Store the actual key in item data for retrieval
+                    item.setData(Qt.UserRole, key)
+
                     # Show status with color and icon
                     self.update_item_appearance(item, key)
-                    
+
                     self.main_window.list_widget.addItem(item)
                     idx += 1
-        
+
         logger.info(f"Loaded {len(self.main_window.image_items)} images from {folder}")
     
     def update_item_appearance(self, item, key):
@@ -111,17 +122,23 @@ class ImageHandler:
         """Refresh appearance of all items"""
         for i in range(self.main_window.list_widget.count()):
             item = self.main_window.list_widget.item(i)
-            key = item.text()
-            self.update_item_appearance(item, key)
-    
+            # Get the actual key from item data
+            key = item.data(Qt.UserRole)
+            if key:
+                self.update_item_appearance(item, key)
+
     def on_image_selected(self, item):
         """When user selects image from list"""
         QtWidgets.QApplication.processEvents()
 
         # Save annotation of current image first
         self.main_window.annotation_handler.save_current_annotation()
-        
-        key = item.text()
+
+        # Get the actual key from item data (not display text)
+        key = item.data(Qt.UserRole)
+        if not key:
+            # Fallback for old format (backward compatibility)
+            key = item.text()
 
         # Find image path
         for k, full in self.main_window.image_items:
@@ -181,48 +198,49 @@ class ImageHandler:
         """Check if image is checked"""
         for i in range(self.main_window.list_widget.count()):
             item = self.main_window.list_widget.item(i)
-            if item.text() == key:
+            item_key = item.data(Qt.UserRole) or item.text()
+            if item_key == key:
                 return item.checkState() == Qt.Checked
         return False
-    
+
     def check_only_annotated(self):
         """Check only images with annotations"""
         for i in range(self.main_window.list_widget.count()):
             item = self.main_window.list_widget.item(i)
-            key = item.text()
+            key = item.data(Qt.UserRole) or item.text()
             has_annotation = bool(self.main_window.annotations.get(key))
             item.setCheckState(Qt.Checked if has_annotation else Qt.Unchecked)
             self.update_item_appearance(item, key)
-        
+
         logger.info("Checked only annotated images")
-    
+
     def uncheck_unannotated(self):
         """Uncheck images without annotations"""
         for i in range(self.main_window.list_widget.count()):
             item = self.main_window.list_widget.item(i)
-            key = item.text()
+            key = item.data(Qt.UserRole) or item.text()
             if not self.main_window.annotations.get(key):
                 item.setCheckState(Qt.Unchecked)
                 self.update_item_appearance(item, key)
-        
+
         logger.info("Unchecked unannotated images")
-    
+
     def select_all_images(self):
         """Select all images (Check All)"""
         for i in range(self.main_window.list_widget.count()):
             item = self.main_window.list_widget.item(i)
             item.setCheckState(Qt.Checked)
-            key = item.text()
+            key = item.data(Qt.UserRole) or item.text()
             self.update_item_appearance(item, key)
-        
+
         logger.info("Selected all images")
-    
+
     def deselect_all_images(self):
         """Deselect all images (Uncheck All)"""
         for i in range(self.main_window.list_widget.count()):
             item = self.main_window.list_widget.item(i)
             item.setCheckState(Qt.Unchecked)
-            key = item.text()
+            key = item.data(Qt.UserRole) or item.text()
             self.update_item_appearance(item, key)
-        
+
         logger.info("Deselected all images")

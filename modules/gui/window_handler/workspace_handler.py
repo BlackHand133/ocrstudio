@@ -1,6 +1,7 @@
 # modules/gui/window_handler/workspace_handler.py
 
 import logging
+import re
 from typing import Optional, Dict
 from modules.utils import sanitize_annotations
 
@@ -54,7 +55,12 @@ class WorkspaceHandler:
             self.version_data = version_data
 
             # Load data into MainWindow
-            self.main_window.annotations = version_data.get("annotations", {})
+            annotations = version_data.get("annotations", {})
+
+            # Migrate old format keys if needed
+            annotations = self._migrate_old_annotation_keys(annotations)
+
+            self.main_window.annotations = annotations
             self.main_window.image_rotations = version_data.get("transforms", {})
 
             # Update app config
@@ -261,3 +267,42 @@ class WorkspaceHandler:
 
         # Call delete_workspace from workspace_manager
         return self.main_window.workspace_manager.delete_workspace(workspace_id)
+
+    def _migrate_old_annotation_keys(self, annotations: Dict) -> Dict:
+        """
+        Migrate old format keys (0001_filename.jpg) to new format (filename.jpg or path/filename.jpg)
+
+        This prevents data loss when:
+        - New images are added to the folder
+        - Images are renamed or moved
+        - Folder structure changes
+
+        Args:
+            annotations: Dictionary with old format keys
+
+        Returns:
+            Dictionary with new format keys
+        """
+        if not annotations:
+            return annotations
+
+        migrated = {}
+        old_format_pattern = re.compile(r'^\d{4}_(.+)$')  # Matches "0001_filename.jpg"
+
+        for old_key, ann_list in annotations.items():
+            # Check if key uses old format
+            match = old_format_pattern.match(old_key)
+
+            if match:
+                # Extract filename without index prefix
+                new_key = match.group(1)
+                migrated[new_key] = ann_list
+                logger.info(f"Migrated annotation key: {old_key} → {new_key}")
+            else:
+                # Already new format or simple filename
+                migrated[old_key] = ann_list
+
+        if len(migrated) != len(annotations):
+            logger.warning(f"Migration resulted in different number of keys: {len(annotations)} → {len(migrated)}")
+
+        return migrated

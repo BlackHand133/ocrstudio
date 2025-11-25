@@ -198,9 +198,11 @@ class RecognitionExporter(BaseExporter):
         # Progress dialog
         total_crops = sum(len(v) for v in split_result.values())
         progress = QtWidgets.QProgressDialog(
-            "Processing crops...", "Cancel", 0, total_crops, self.main_window
+            "Exporting Recognition Dataset...", "Cancel", 0, total_crops, self.main_window
         )
+        progress.setWindowTitle("Export Recognition Dataset")
         progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
 
         all_crops = {split_name: [] for split_name in split_result.keys()}
 
@@ -212,10 +214,14 @@ class RecognitionExporter(BaseExporter):
         for split_name, split_items in split_result.items():
             for item in split_items:
                 progress.setValue(processed)
-                if progress.wasCanceled():
-                    break
-
                 key, full, idx, pts, txt = item
+                progress.setLabelText(f"Processing: {key} (crop {idx})\n({processed+1}/{total_crops}) [{split_name}]")
+                QtWidgets.QApplication.processEvents()
+
+                if progress.wasCanceled():
+                    logger.info("Recognition export cancelled by user")
+                    progress.close()
+                    return False
 
                 try:
                     # Load image (with rotation support)
@@ -246,15 +252,39 @@ class RecognitionExporter(BaseExporter):
                     logger.debug(f"Cropping {key}_{idx} using {crop_method} method")
 
                     if crop_method == 'rotated':
-                        crop_np = export_utils.crop_rotated_box(
+                        crop_result = export_utils.crop_rotated_box(
                             img_np, pts, auto_detect=auto_detect,
-                            orientation_classifier=self.orientation_classifier
+                            orientation_classifier=self.orientation_classifier,
+                            return_angle=True
                         )
+                        if crop_result is None:
+                            crop_np = None
+                            angle_used = 0
+                        elif isinstance(crop_result, tuple):
+                            crop_np, angle_used = crop_result
+                        else:
+                            crop_np = crop_result
+                            angle_used = 0
                     else:  # 'bbox'
-                        crop_np = export_utils.crop_bounding_box(
+                        crop_result = export_utils.crop_bounding_box(
                             img_np, pts, auto_detect=auto_detect,
-                            orientation_classifier=self.orientation_classifier
+                            orientation_classifier=self.orientation_classifier,
+                            return_angle=True
                         )
+                        if crop_result is None:
+                            crop_np = None
+                            angle_used = 0
+                        elif isinstance(crop_result, tuple):
+                            crop_np, angle_used = crop_result
+                        else:
+                            crop_np = crop_result
+                            angle_used = 0
+
+                    # Track orientation statistics
+                    if auto_detect and crop_np is not None:
+                        angle_key = str(angle_used)
+                        if angle_key in self.orientation_stats:
+                            self.orientation_stats[angle_key] += 1
 
                     if crop_np is None or crop_np.size == 0:
                         logger.error(f"Failed to crop: {key}_{idx} (method: {crop_method})")
@@ -335,6 +365,35 @@ class RecognitionExporter(BaseExporter):
                 for rel_path, text in crop_list:
                     f.write(f"{rel_path}\t{text}\n")
 
+        # Create orientation report if auto-detection was used
+        if auto_detect:
+            rotated_count = self.orientation_stats.get('90', 0) + self.orientation_stats.get('180', 0) + self.orientation_stats.get('270', 0)
+            if rotated_count > 0:
+                report_path = os.path.join(rec_dir, "orientation_report.txt")
+                with open(report_path, "w", encoding="utf-8") as f:
+                    f.write("=" * 60 + "\n")
+                    f.write("ORIENTATION DETECTION REPORT\n")
+                    f.write("=" * 60 + "\n\n")
+                    f.write(f"Total crops processed: {total_crops}\n")
+                    f.write(f"Crops with orientation correction: {rotated_count}\n\n")
+                    f.write("Orientation Statistics:\n")
+                    for angle, count in sorted(self.orientation_stats.items()):
+                        pct = (count / total_crops * 100) if total_crops > 0 else 0
+                        f.write(f"  • {angle:3s}°: {count:4d} crops ({pct:5.1f}%)\n")
+                    f.write("\n" + "-" * 60 + "\n")
+                    f.write("IMPORTANT WARNING:\n")
+                    f.write("-" * 60 + "\n")
+                    f.write("ML-based orientation detection is NOT 100% accurate.\n")
+                    f.write(f"{rotated_count} images were automatically rotated.\n\n")
+                    f.write("RECOMMENDED ACTIONS:\n")
+                    f.write("1. Manually inspect all exported crops\n")
+                    f.write("2. Pay special attention to images with rotation (90°/180°/270°)\n")
+                    f.write("3. Check if any images are upside-down or incorrectly rotated\n")
+                    f.write("4. Correct any errors before training your model\n")
+                    f.write("\nProblematic images may appear in any rotation category.\n")
+                    f.write("Visual inspection is the most reliable verification method.\n")
+                logger.info(f"Orientation report saved to: {report_path}")
+
         # Show completion message
         total_crops_saved = sum(len(v) for v in all_crops.values())
         stats = "\n".join([
@@ -357,28 +416,65 @@ class RecognitionExporter(BaseExporter):
 
         # Orientation stats
         orient_info = ""
+        orientation_warning = ""
         if auto_detect:
             orient_lines = [f"  • {angle}°: {count}" for angle, count in self.orientation_stats.items()]
             orient_info = f"\n🔍 Orientation Correction:\n" + "\n".join(orient_lines)
 
+            # Add warning if non-zero rotations detected
+            rotated_count = self.orientation_stats.get('90', 0) + self.orientation_stats.get('180', 0) + self.orientation_stats.get('270', 0)
+            if rotated_count > 0:
+                orientation_warning = (
+                    f"\n\n⚠️ IMPORTANT: Auto-orientation corrected {rotated_count} images.\n"
+                    f"   ML models are NOT 100% accurate. Please verify your dataset:\n"
+                    f"   • Check if any images are upside-down or incorrectly rotated\n"
+                    f"   • Pay special attention to images with rotation (90°/180°/270°)\n"
+                    f"   • Manual verification is recommended before training\n"
+                    f"   • See 'orientation_report.txt' for detailed statistics"
+                )
+
         failed_msg = f"\n⚠️ Failed: {failed_crops} crops" if failed_crops > 0 else ""
 
-        QtWidgets.QMessageBox.information(
-            self.main_window, "Export Recognition Dataset",
-            f"✅ Recognition Dataset saved successfully!\n\n"
-            f"📁 Location: {rec_dir}\n\n"
+        # Show completion message with option to open folder
+        msg_box = QtWidgets.QMessageBox(self.main_window)
+        msg_box.setWindowTitle("Export Recognition Dataset")
+        msg_box.setText("✅ Recognition Dataset saved successfully!")
+        msg_box.setInformativeText(
+            f"📁 Location:\n{rec_dir}\n\n"
             f"📊 Statistics:\n{stats}\n  • Total: {total_crops_saved} crops{aug_info}\n\n"
             f"✅ Crop Method: {crop_method_name}\n"
-            f"📐 Final Orientation: {horizontal_count}/{total_crops_saved} horizontal ({horizontal_pct:.1f}%){orient_info}{failed_msg}\n\n"
+            f"📐 Final Orientation: {horizontal_count}/{total_crops_saved} horizontal ({horizontal_pct:.1f}%){orient_info}{failed_msg}{orientation_warning}\n\n"
             f"ℹ️ Notes:\n"
             f"  • Mask items are hidden in exported images\n"
             f"  • Crops are processed for horizontal LTR text\n"
             f"  • {'Uses auto-orientation' if auto_detect else 'No auto-orientation'}"
         )
+        msg_box.setIcon(QtWidgets.QMessageBox.Information)
+
+        # Add buttons
+        btn_open = msg_box.addButton("Open Folder", QtWidgets.QMessageBox.ActionRole)
+        msg_box.addButton(QtWidgets.QMessageBox.Ok)
+
+        msg_box.exec_()
+
+        # Check if user clicked Open Folder
+        if msg_box.clickedButton() == btn_open:
+            import subprocess
+            import sys
+            if sys.platform == 'win32':
+                os.startfile(rec_dir)
+            elif sys.platform == 'darwin':
+                subprocess.run(['open', rec_dir])
+            else:
+                subprocess.run(['xdg-open', rec_dir])
 
         logger.info(f"Exported recognition dataset to {rec_dir} using {crop_method} method")
         logger.info(f"Horizontal orientation: {horizontal_count}/{total_crops_saved} ({horizontal_pct:.1f}%)")
         if auto_detect:
             logger.info(f"Orientation stats: {self.orientation_stats}")
+            rotated_count = self.orientation_stats.get('90', 0) + self.orientation_stats.get('180', 0) + self.orientation_stats.get('270', 0)
+            if rotated_count > 0:
+                logger.warning(f"Auto-orientation corrected {rotated_count} images. Manual verification recommended!")
+                logger.warning("ML-based orientation detection is not 100% accurate. Please verify exported crops.")
 
         return True

@@ -259,19 +259,27 @@ def select_best_orientation(img: np.ndarray, auto_orient: bool = True,
         should_flip_270 = detect_upside_down_with_model(img_270, orientation_classifier)
 
         # Choose the one that doesn't need flipping
-        if should_flip_270 and not should_flip_90:
+        if not should_flip_90:
+            # 90° doesn't need flip, use it
             best_img = img_90
             angle_applied = 90
-        elif should_flip_90 and not should_flip_270:
+            logger.debug("Portrait->Landscape: Using 90° (no flip needed)")
+        elif not should_flip_270:
+            # 270° doesn't need flip, use it
             best_img = img_270
             angle_applied = 270
+            logger.debug("Portrait->Landscape: Using 270° (no flip needed)")
         else:
-            # Both same, default to 90° and check if need flip
+            # Both need flipping OR both don't need flipping
+            # Default to 90° and apply flip if needed
             best_img = img_90
-            angle_applied = 90
             if should_flip_90:
                 best_img = cv2.rotate(best_img, cv2.ROTATE_180)
-                angle_applied = 270
+                angle_applied = 270  # 90 + 180 = 270
+                logger.debug("Portrait->Landscape: Using 90° + 180° flip = 270° total")
+            else:
+                angle_applied = 90
+                logger.debug("Portrait->Landscape: Using 90° (both orientations acceptable)")
     else:
         # Already landscape or square
         logger.debug(f"Image is landscape ({h}x{w}), checking orientation")
@@ -335,7 +343,7 @@ def order_points(pts: np.ndarray) -> np.ndarray:
 
 
 def crop_rotated_box(img: np.ndarray, pts: List, auto_detect: bool = True,
-                     orientation_classifier=None) -> Optional[np.ndarray]:
+                     orientation_classifier=None, return_angle: bool = False) -> Optional[np.ndarray]:
     """
     Crop image according to rotated rectangle and transform to straight.
 
@@ -348,9 +356,11 @@ def crop_rotated_box(img: np.ndarray, pts: List, auto_detect: bool = True,
         pts: list of points [[x1,y1], [x2,y2], ...]
         auto_detect: use auto-detection for post-processing
         orientation_classifier: Orientation classifier instance
+        return_angle: if True, return (crop, angle) tuple
 
     Returns:
         numpy array of cropped straightened image, or None if failed
+        If return_angle=True, returns tuple (crop, angle)
     """
     try:
         # Validate input
@@ -397,9 +407,11 @@ def crop_rotated_box(img: np.ndarray, pts: List, auto_detect: bool = True,
             warped = cv2.warpPerspective(img, M, (max_width, max_height))
 
             # Post-process for orientation
-            warped, _ = select_best_orientation(warped, auto_orient=auto_detect,
+            warped, angle = select_best_orientation(warped, auto_orient=auto_detect,
                                                orientation_classifier=orientation_classifier)
 
+            if return_angle:
+                return warped, angle
             return warped
 
         # Method 2: Use minimum area rectangle
@@ -447,9 +459,11 @@ def crop_rotated_box(img: np.ndarray, pts: List, auto_detect: bool = True,
             warped = cv2.warpPerspective(img, M, (dst_w, dst_h))
 
             # Post-process for orientation
-            warped, _ = select_best_orientation(warped, auto_orient=auto_detect,
+            warped, angle = select_best_orientation(warped, auto_orient=auto_detect,
                                                orientation_classifier=orientation_classifier)
 
+            if return_angle:
+                return warped, angle
             return warped
 
     except Exception as e:
@@ -458,7 +472,7 @@ def crop_rotated_box(img: np.ndarray, pts: List, auto_detect: bool = True,
 
 
 def crop_bounding_box(img: np.ndarray, pts: List, auto_detect: bool = True,
-                     orientation_classifier=None) -> Optional[np.ndarray]:
+                     orientation_classifier=None, return_angle: bool = False) -> Optional[np.ndarray]:
     """
     Crop image according to bounding box (axis-aligned, no rotation).
 
@@ -467,9 +481,11 @@ def crop_bounding_box(img: np.ndarray, pts: List, auto_detect: bool = True,
         pts: list of points [[x1,y1], [x2,y2], ...]
         auto_detect: use auto-detection for post-processing
         orientation_classifier: Orientation classifier instance
+        return_angle: if True, return (crop, angle) tuple
 
     Returns:
         numpy array of cropped image, or None if failed
+        If return_angle=True, returns tuple (crop, angle)
     """
     try:
         h, w = img.shape[:2]
@@ -491,9 +507,11 @@ def crop_bounding_box(img: np.ndarray, pts: List, auto_detect: bool = True,
         crop = img[y1:y2, x1:x2]
 
         # Post-process for orientation
-        crop, _ = select_best_orientation(crop, auto_orient=auto_detect,
+        crop, angle = select_best_orientation(crop, auto_orient=auto_detect,
                                          orientation_classifier=orientation_classifier)
 
+        if return_angle:
+            return crop, angle
         return crop
 
     except Exception as e:

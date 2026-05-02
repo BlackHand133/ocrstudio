@@ -117,6 +117,9 @@ class PolygonItem(BaseAnnotationItem, QtWidgets.QGraphicsPolygonItem):
         # Ensure vertices are within bounds after release
         self._clip_polygon_to_bounds()
         super().mouseReleaseEvent(event)
+
+        # Save annotation after move/resize
+        self._save_to_parent()
     
     def itemChange(self, change, value):
         """Override to prevent moving outside image bounds"""

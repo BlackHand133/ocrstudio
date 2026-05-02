@@ -1,78 +1,83 @@
-# modules/gui/settings_dialog.py
+# modules/gui/dialogs/settings_dialog.py
 
-from PyQt5 import QtWidgets, QtCore, QtGui
-from modules.config_loader import ConfigLoader
 import logging
-import copy
+
+from PyQt5 import QtWidgets, QtCore
+
+from modules.config import ConfigManager
 
 logger = logging.getLogger("TextDetGUI")
 
 
 class SettingsDialog(QtWidgets.QDialog):
     """
-    Dialog for application settings
-    - OCR Settings (Profile, PaddleOCR parameters)
-    - Application Settings
+    Dialog for application settings.
+
+    Tabs:
+    - OCR Settings  : profile selection (CPU/GPU), PaddleOCR parameters
+    - Application   : auto-save, cache, config file path
+
+    Uses ConfigManager (singleton) exclusively — ConfigLoader is gone.
     """
 
-    # Signal when settings change
+    # Signal emitted when the user applies or accepts settings
     settings_changed = QtCore.pyqtSignal()
 
-    def __init__(self, config_loader: ConfigLoader, parent=None):
+    def __init__(self, config: ConfigManager, parent=None):
         super().__init__(parent)
-        self.config_loader = config_loader
+        self.config = config
 
-        # Store original config for Cancel
-        self.original_config = copy.deepcopy(self.config_loader._config)
+        # Save a snapshot so Cancel can undo in-memory changes
+        self._snapshot = config.snapshot()
 
         self.init_ui()
         self.load_current_settings()
 
+    # ------------------------------------------------------------------ UI
+
     def init_ui(self):
-        """Create UI"""
         self.setWindowTitle("Settings")
         self.setModal(True)
         self.resize(600, 500)
 
-        # Main layout
         layout = QtWidgets.QVBoxLayout(self)
 
-        # Tab Widget
         self.tab_widget = QtWidgets.QTabWidget()
         layout.addWidget(self.tab_widget)
 
-        # Tabs
         self.create_ocr_tab()
         self.create_app_tab()
 
-        # Buttons
         button_box = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok |
-            QtWidgets.QDialogButtonBox.Cancel |
-            QtWidgets.QDialogButtonBox.Apply
+            QtWidgets.QDialogButtonBox.Ok
+            | QtWidgets.QDialogButtonBox.Cancel
+            | QtWidgets.QDialogButtonBox.Apply
         )
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
-        button_box.button(QtWidgets.QDialogButtonBox.Apply).clicked.connect(self.apply_settings)
+        button_box.button(QtWidgets.QDialogButtonBox.Apply).clicked.connect(
+            self.apply_settings
+        )
         layout.addWidget(button_box)
 
     def create_ocr_tab(self):
-        """Create OCR Settings Tab"""
         tab = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(tab)
 
-        # === Profile Selection ===
+        # --- Profile selection ---
         profile_group = QtWidgets.QGroupBox("Profile Selection")
         profile_layout = QtWidgets.QVBoxLayout()
 
-        # Radio buttons for profile
-        self.profile_cpu_radio = QtWidgets.QRadioButton("CPU (recommended for stability)")
-        self.profile_gpu_radio = QtWidgets.QRadioButton("GPU (faster, requires CUDA)")
-
+        self.profile_cpu_radio = QtWidgets.QRadioButton(
+            "CPU (recommended for stability)"
+        )
+        self.profile_gpu_radio = QtWidgets.QRadioButton(
+            "GPU (faster, requires CUDA)"
+        )
         profile_layout.addWidget(self.profile_cpu_radio)
         profile_layout.addWidget(self.profile_gpu_radio)
 
-        # GPU Settings (shown when GPU is selected)
+        # GPU sub-options
         self.gpu_settings_widget = QtWidgets.QWidget()
         gpu_layout = QtWidgets.QFormLayout()
 
@@ -92,25 +97,21 @@ class SettingsDialog(QtWidgets.QDialog):
 
         self.gpu_settings_widget.setLayout(gpu_layout)
         self.gpu_settings_widget.setEnabled(False)
-        profile_layout.addWidget(self.gpu_settings_widget)
-
-        # Connect signal
         self.profile_gpu_radio.toggled.connect(self.gpu_settings_widget.setEnabled)
 
+        profile_layout.addWidget(self.gpu_settings_widget)
         profile_group.setLayout(profile_layout)
         layout.addWidget(profile_group)
 
-        # === PaddleOCR Parameters ===
+        # --- PaddleOCR parameters ---
         ocr_group = QtWidgets.QGroupBox("PaddleOCR Parameters")
         ocr_layout = QtWidgets.QFormLayout()
 
-        # Language
         self.lang_combo = QtWidgets.QComboBox()
         self.lang_combo.addItems(["th", "en", "ch", "japan", "korean"])
         self.lang_combo.setCurrentText("th")
         ocr_layout.addRow("Language:", self.lang_combo)
 
-        # Detection threshold
         self.det_thresh_spin = QtWidgets.QDoubleSpinBox()
         self.det_thresh_spin.setMinimum(0.0)
         self.det_thresh_spin.setMaximum(1.0)
@@ -119,7 +120,6 @@ class SettingsDialog(QtWidgets.QDialog):
         self.det_thresh_spin.setDecimals(2)
         ocr_layout.addRow("Detection Threshold:", self.det_thresh_spin)
 
-        # Unclip ratio
         self.unclip_ratio_spin = QtWidgets.QDoubleSpinBox()
         self.unclip_ratio_spin.setMinimum(1.0)
         self.unclip_ratio_spin.setMaximum(3.0)
@@ -128,188 +128,204 @@ class SettingsDialog(QtWidgets.QDialog):
         self.unclip_ratio_spin.setDecimals(1)
         ocr_layout.addRow("Unclip Ratio:", self.unclip_ratio_spin)
 
-        # Checkboxes for features
-        self.use_doc_orientation_check = QtWidgets.QCheckBox("Detect document rotation")
+        self.use_doc_orientation_check = QtWidgets.QCheckBox(
+            "Detect document rotation"
+        )
         ocr_layout.addRow("", self.use_doc_orientation_check)
 
-        self.use_doc_unwarping_check = QtWidgets.QCheckBox("Fix document distortion")
+        self.use_doc_unwarping_check = QtWidgets.QCheckBox(
+            "Fix document distortion"
+        )
         ocr_layout.addRow("", self.use_doc_unwarping_check)
 
-        self.use_textline_orientation_check = QtWidgets.QCheckBox("Detect text line orientation (recommended for GPU)")
+        self.use_textline_orientation_check = QtWidgets.QCheckBox(
+            "Detect text line orientation (recommended for GPU)"
+        )
         ocr_layout.addRow("", self.use_textline_orientation_check)
 
         ocr_group.setLayout(ocr_layout)
         layout.addWidget(ocr_group)
 
-        # Description
         info_label = QtWidgets.QLabel(
             "<small><b>Note:</b><br>"
-            "- Detection Threshold: Higher value = stricter detection (0.5-0.9)<br>"
-            "- Unclip Ratio: Higher value = expand bounding box more (1.0-2.5)<br>"
+            "- Detection Threshold: Higher value = stricter detection (0.5–0.9)<br>"
+            "- Unclip Ratio: Higher value = expand bounding box more (1.0–2.5)<br>"
             "- Changing profile will reload OCR detector automatically</small>"
         )
         info_label.setWordWrap(True)
         layout.addWidget(info_label)
 
         layout.addStretch()
-
         self.tab_widget.addTab(tab, "OCR Settings")
 
     def create_app_tab(self):
-        """Create Application Settings Tab"""
         tab = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(tab)
 
-        # === Application Settings ===
+        # --- App settings ---
         app_group = QtWidgets.QGroupBox("Application Settings")
         app_layout = QtWidgets.QVBoxLayout()
 
-        self.auto_save_check = QtWidgets.QCheckBox("Auto Save (automatically save when changes occur)")
+        self.auto_save_check = QtWidgets.QCheckBox(
+            "Auto Save (automatically save when changes occur)"
+        )
         app_layout.addWidget(self.auto_save_check)
 
-        self.cache_annotations_check = QtWidgets.QCheckBox("Cache Annotations (store cache for speed)")
+        self.cache_annotations_check = QtWidgets.QCheckBox(
+            "Cache Annotations (store cache for speed)"
+        )
         app_layout.addWidget(self.cache_annotations_check)
 
         app_group.setLayout(app_layout)
         layout.addWidget(app_group)
 
-        # === Info ===
+        # --- Info ---
         info_group = QtWidgets.QGroupBox("About")
         info_layout = QtWidgets.QVBoxLayout()
 
-        config_path_label = QtWidgets.QLabel(f"<b>Config File:</b> {self.config_loader.config_file}")
+        config_path_label = QtWidgets.QLabel(
+            f"<b>Config File:</b> {self.config.config_file}"
+        )
         config_path_label.setWordWrap(True)
         info_layout.addWidget(config_path_label)
 
-        available_profiles = self.config_loader.list_profiles()
-        profiles_label = QtWidgets.QLabel(f"<b>Available Profiles:</b> {', '.join(available_profiles)}")
+        available_profiles = self.config.list_profiles()
+        profiles_label = QtWidgets.QLabel(
+            f"<b>Available Profiles:</b> {', '.join(available_profiles)}"
+        )
         info_layout.addWidget(profiles_label)
 
         info_group.setLayout(info_layout)
         layout.addWidget(info_group)
 
         layout.addStretch()
-
         self.tab_widget.addTab(tab, "Application")
 
+    # ------------------------------------------------------------------ load / save
+
     def load_current_settings(self):
-        """Load current settings"""
+        """Populate widgets from ConfigManager."""
         try:
-            # Load default profile
-            default_profile = self.config_loader.get_default_profile_name()
+            default_profile = self.config.get_default_profile_name()
 
             if default_profile == "cpu":
                 self.profile_cpu_radio.setChecked(True)
             elif default_profile == "gpu":
                 self.profile_gpu_radio.setChecked(True)
 
-            # Load profile config
-            profile_config = self.config_loader.get_profile(default_profile)
+            profile_config = self.config.get_profile(default_profile)
 
-            # GPU Settings
             if default_profile == "gpu":
-                device_config = profile_config.get('device', {})
-                self.gpu_id_spin.setValue(device_config.get('gpu_id', 0))
-                self.gpu_mem_spin.setValue(device_config.get('gpu_mem', 8000))
+                device_config = profile_config.get("device", {})
+                self.gpu_id_spin.setValue(device_config.get("gpu_id", 0))
+                self.gpu_mem_spin.setValue(device_config.get("gpu_mem", 8000))
 
-            # PaddleOCR Settings
-            ocr_config = profile_config.get('paddleocr', {})
+            ocr_config = profile_config.get("paddleocr", {})
+            self.lang_combo.setCurrentText(ocr_config.get("lang", "th"))
+            self.det_thresh_spin.setValue(
+                ocr_config.get("det_db_box_thresh", 0.7)
+            )
+            self.unclip_ratio_spin.setValue(
+                ocr_config.get("det_db_unclip_ratio", 1.5)
+            )
+            self.use_doc_orientation_check.setChecked(
+                ocr_config.get("use_doc_orientation_classify", False)
+            )
+            self.use_doc_unwarping_check.setChecked(
+                ocr_config.get("use_doc_unwarping", False)
+            )
+            self.use_textline_orientation_check.setChecked(
+                ocr_config.get("use_textline_orientation", False)
+            )
 
-            self.lang_combo.setCurrentText(ocr_config.get('lang', 'th'))
-            self.det_thresh_spin.setValue(ocr_config.get('det_db_box_thresh', 0.7))
-            self.unclip_ratio_spin.setValue(ocr_config.get('det_db_unclip_ratio', 1.5))
-
-            self.use_doc_orientation_check.setChecked(ocr_config.get('use_doc_orientation_classify', False))
-            self.use_doc_unwarping_check.setChecked(ocr_config.get('use_doc_unwarping', False))
-            self.use_textline_orientation_check.setChecked(ocr_config.get('use_textline_orientation', False))
-
-            # App Settings
-            app_config = self.config_loader.get_app_settings()
-            self.auto_save_check.setChecked(app_config.get('auto_save', True))
-            self.cache_annotations_check.setChecked(app_config.get('cache_annotations', True))
+            app_settings = self.config.get_app_settings()
+            self.auto_save_check.setChecked(
+                app_settings.get("auto_save", True)
+            )
+            self.cache_annotations_check.setChecked(
+                app_settings.get("cache_annotations", True)
+            )
 
             logger.info("Loaded current settings into dialog")
 
         except Exception as e:
             logger.error(f"Failed to load settings: {e}")
             QtWidgets.QMessageBox.warning(
-                self,
-                "Error",
-                f"Failed to load settings:\n{str(e)}"
+                self, "Error", f"Failed to load settings:\n{e}"
             )
 
     def apply_settings(self):
-        """Save settings to config"""
+        """Write widget values back to ConfigManager and persist to disk."""
         try:
-            # Determine selected profile
-            if self.profile_cpu_radio.isChecked():
-                profile_name = "cpu"
-            elif self.profile_gpu_radio.isChecked():
-                profile_name = "gpu"
-            else:
-                profile_name = "cpu"
+            profile_name = "gpu" if self.profile_gpu_radio.isChecked() else "cpu"
 
-            # Change default profile
-            old_profile = self.config_loader.get_default_profile_name()
-            self.config_loader.set_default_profile(profile_name)
+            old_profile = self.config.get_default_profile_name()
+            self.config.set_default_profile(profile_name)
 
-            # Update profile config
-            profile_config = self.config_loader._config['profiles'][profile_name]
+            # Update profile — get_profile_config() returns a live dict reference
+            profile_config = self.config.get_profile_config(profile_name)
 
-            # Update GPU settings (if GPU is selected)
             if profile_name == "gpu":
-                profile_config['device']['gpu_id'] = self.gpu_id_spin.value()
-                profile_config['device']['gpu_mem'] = self.gpu_mem_spin.value()
+                profile_config.setdefault("device", {})["gpu_id"] = (
+                    self.gpu_id_spin.value()
+                )
+                profile_config["device"]["gpu_mem"] = self.gpu_mem_spin.value()
 
-            # Update PaddleOCR settings
-            ocr_config = profile_config['paddleocr']
-            ocr_config['lang'] = self.lang_combo.currentText()
-            ocr_config['det_db_box_thresh'] = self.det_thresh_spin.value()
-            ocr_config['det_db_unclip_ratio'] = self.unclip_ratio_spin.value()
-            ocr_config['use_doc_orientation_classify'] = self.use_doc_orientation_check.isChecked()
-            ocr_config['use_doc_unwarping'] = self.use_doc_unwarping_check.isChecked()
-            ocr_config['use_textline_orientation'] = self.use_textline_orientation_check.isChecked()
-            ocr_config['device'] = profile_name  # Must match profile
+            ocr_config = profile_config.setdefault("paddleocr", {})
+            ocr_config["lang"]                        = self.lang_combo.currentText()
+            ocr_config["det_db_box_thresh"]            = self.det_thresh_spin.value()
+            ocr_config["det_db_unclip_ratio"]          = self.unclip_ratio_spin.value()
+            ocr_config["use_doc_orientation_classify"] = (
+                self.use_doc_orientation_check.isChecked()
+            )
+            ocr_config["use_doc_unwarping"]            = (
+                self.use_doc_unwarping_check.isChecked()
+            )
+            ocr_config["use_textline_orientation"]     = (
+                self.use_textline_orientation_check.isChecked()
+            )
+            ocr_config["device"] = profile_name  # must match profile name
 
-            # Update App settings
-            app_config = self.config_loader._config.get('app', {})
-            app_config['auto_save'] = self.auto_save_check.isChecked()
-            app_config['cache_annotations'] = self.cache_annotations_check.isChecked()
-            self.config_loader._config['app'] = app_config
+            # Update app settings
+            app_settings = self.config.get_app_settings()
+            app_settings["auto_save"]          = self.auto_save_check.isChecked()
+            app_settings["cache_annotations"]  = (
+                self.cache_annotations_check.isChecked()
+            )
 
-            # Save to file
-            self.config_loader.save()
+            # Persist everything
+            self.config.save()
 
-            # Emit signal that settings changed
+            # Update snapshot so a subsequent Cancel doesn't revert applied settings
+            self._snapshot = self.config.snapshot()
+
             self.settings_changed.emit()
 
-            # Notify if profile changed
             if old_profile != profile_name:
                 QtWidgets.QMessageBox.information(
                     self,
                     "Profile Changed",
                     f"Profile changed from '{old_profile}' to '{profile_name}'.\n"
-                    "OCR detector will be reloaded."
+                    "OCR detector will be reloaded.",
                 )
 
-            logger.info(f"Settings saved successfully. Profile: {profile_name}")
+            logger.info(f"Settings saved. Profile: {profile_name}")
 
         except Exception as e:
             logger.error(f"Failed to save settings: {e}")
             QtWidgets.QMessageBox.critical(
-                self,
-                "Error",
-                f"Failed to save settings:\n{str(e)}"
+                self, "Error", f"Failed to save settings:\n{e}"
             )
 
+    # ------------------------------------------------------------------ dialog actions
+
     def accept(self):
-        """OK button - save and close"""
+        """OK — apply then close."""
         self.apply_settings()
         super().accept()
 
     def reject(self):
-        """Cancel button - cancel and restore original values"""
-        # Restore original config
-        self.config_loader._config = self.original_config
-        logger.info("Settings cancelled. Config restored.")
+        """Cancel — restore in-memory config to the snapshot taken at open."""
+        self.config.restore_snapshot(self._snapshot)
+        logger.info("Settings cancelled — config restored from snapshot.")
         super().reject()

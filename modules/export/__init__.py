@@ -21,9 +21,11 @@ Usage:
 from modules.export.base import BaseExporter
 from modules.export.detection import DetectionExporter
 from modules.export.recognition import RecognitionExporter
+from modules.export.utils import ExportValidationError
 
 __all__ = [
     'BaseExporter',
     'DetectionExporter',
-    'RecognitionExporter'
+    'RecognitionExporter',
+    'ExportValidationError',
 ]

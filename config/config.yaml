@@ -1,50 +1,159 @@
-# config/config.yaml
-# Simple Configuration - Based on test.py
+# =====================================================
+# PaddleOCR Configuration
+# =====================================================
+# Main configuration file for the application
+# Change 'default_profile' to switch between CPU/GPU
 
-# ===== Default Profile =====
-# เปลี่ยนตรงนี้เพื่อสลับ CPU/GPU
+# ===== Active Profile =====
 # Options: "cpu", "gpu"
 default_profile: "cpu"
 
-# ===== Profiles =====
+# =====================================================
+# PROFILES
+# =====================================================
+
 profiles:
-  # CPU Profile (เหมือน test.py - แนะนำ)
+  # -------------------------------------------------
+  # CPU Profile (Recommended for most users)
+  # -------------------------------------------------
   cpu:
-    # Device settings
     device:
       type: "cpu"
-    
-    # PaddleOCR settings (เหมือน test.py ทุกประการ)
+
     paddleocr:
-      lang: "th"
-      use_doc_orientation_classify: false
-      use_doc_unwarping: false
-      use_textline_orientation: false
+      # ===== Basic Settings =====
+      lang: "th"                      # Language (th, en, ch, japan, korean, etc.)
       device: "cpu"
-      # Detection parameters
-      det_db_box_thresh: 0.7
-      det_db_unclip_ratio: 1.5
-  
-  # GPU Profile (สำหรับความเร็ว)
+
+      # ===== Model Selection (uncomment to customize) =====
+      # ocr_version: "PP-OCRv5"       # PP-OCRv5, PP-OCRv4, PP-OCRv3
+      # text_detection_model_name: null
+      # text_recognition_model_name: null
+
+      # ===== Custom Model Paths (uncomment to use custom models) =====
+      # text_detection_model_dir: "models/det/custom_det_model"
+      # text_recognition_model_dir: "models/rec/custom_rec_model"
+      # doc_orientation_classify_model_dir: "models/cls/custom_cls_model"
+      # doc_unwarping_model_dir: "models/unwarp/custom_unwarp_model"
+      # textline_orientation_model_dir: "models/textline/custom_textline_model"
+
+      # ===== Advanced Features (Boolean Toggles) =====
+      use_doc_orientation_classify: false  # Document orientation (0°, 90°, 180°, 270°)
+      use_doc_unwarping: false             # Curved text correction
+      use_textline_orientation: true       # Text line orientation (always enabled)
+
+      # ===== Detection Parameters =====
+      det_db_box_thresh: 0.7          # Box confidence threshold (0.1-1.0, default: 0.6)
+      det_db_unclip_ratio: 1.5        # Box expansion ratio (1.0-3.0, default: 2.0)
+      # text_det_thresh: 0.3          # Pixel confidence threshold
+      # text_det_limit_side_len: 960  # Max image side length
+      # text_det_limit_type: "max"    # "min" or "max"
+      # text_detection_batch_size: 1
+
+      # ===== Recognition Parameters =====
+      rec_batch_num: 6                # Batch size for recognition
+      # text_rec_score_thresh: 0.0    # Recognition score threshold (0.0-1.0)
+      # text_recognition_batch_size: 6
+
+      # ===== CPU Optimization =====
+      enable_mkldnn: true             # Intel MKL-DNN acceleration
+      mkldnn_cache_capacity: 10       # MKL-DNN cache size
+      cpu_threads: 8                  # Number of CPU threads
+
+      # ===== Output Options =====
+      # return_word_box: false        # Return word-level bounding boxes
+
+  # -------------------------------------------------
+  # GPU Profile (For faster processing with CUDA)
+  # -------------------------------------------------
   gpu:
-    # Device settings
     device:
       type: "gpu"
-      gpu_id: 0
-      gpu_mem: 8000
-    
-    # PaddleOCR settings
+      gpu_id: 0                       # GPU device ID (0-7)
+      gpu_mem: 8000                   # GPU memory allocation (MB)
+
     paddleocr:
+      # ===== Basic Settings =====
       lang: "th"
+      device: "gpu"
+
+      # ===== Model Selection (uncomment to customize) =====
+      # ocr_version: "PP-OCRv5"
+      # text_detection_model_name: null
+      # text_recognition_model_name: null
+
+      # ===== Custom Model Paths (uncomment to use custom models) =====
+      # text_detection_model_dir: "models/det/custom_det_model"
+      # text_recognition_model_dir: "models/rec/custom_rec_model"
+      # doc_orientation_classify_model_dir: "models/cls/custom_cls_model"
+      # doc_unwarping_model_dir: "models/unwarp/custom_unwarp_model"
+      # textline_orientation_model_dir: "models/textline/custom_textline_model"
+
+      # ===== Advanced Features (Boolean Toggles) =====
       use_doc_orientation_classify: false
       use_doc_unwarping: false
       use_textline_orientation: true
-      device: "gpu"
-      # Detection parameters
+
+      # ===== Detection Parameters =====
       det_db_box_thresh: 0.7
       det_db_unclip_ratio: 1.5
+      # text_det_thresh: 0.3
+      # text_det_limit_side_len: 960
+      # text_det_limit_type: "max"
+      # text_detection_batch_size: 1
 
-# ===== Application Settings =====
+      # ===== Recognition Parameters =====
+      rec_batch_num: 12               # Larger batch for GPU
+      # text_rec_score_thresh: 0.0
+      # text_recognition_batch_size: 12
+
+      # ===== GPU Optimization =====
+      enable_mkldnn: false            # Disabled for GPU
+      use_tensorrt: false             # TensorRT acceleration
+      precision: "fp32"               # "fp32" or "fp16"
+      # enable_hpi: false             # High-performance inference
+
+      # ===== Output Options =====
+      # return_word_box: false
+
+# =====================================================
+# APPLICATION SETTINGS
+# =====================================================
+
 app:
+  # Auto-save settings
   auto_save: true
   cache_annotations: true
+
+  # Workspace
+  max_recent_workspaces: 10
+
+  # UI settings
+  ui:
+    show_tooltips: true
+    theme: "default"
+
+# =====================================================
+# LOGGING
+# =====================================================
+
+logging:
+  level: "INFO"                 # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  console: true
+  file: true
+  max_file_size_mb: 10
+  backup_count: 5
+
+# =====================================================
+# PATHS
+# =====================================================
+
+paths:
+  workspaces: "workspaces"
+  models: "models"
+  output: "output"
+  output_det: "output_det"
+  output_rec: "output_rec"
+  logs: "logs"
+  cache: "cache"
+  temp: "temp"

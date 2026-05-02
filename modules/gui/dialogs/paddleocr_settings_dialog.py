@@ -236,61 +236,134 @@ class PaddleOCRSettingsDialog(QtWidgets.QDialog):
         layout = QtWidgets.QVBoxLayout(tab)
         layout.setSpacing(15)
 
+        # Scroll area for many parameters
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll_widget = QtWidgets.QWidget()
+        scroll_layout = QtWidgets.QVBoxLayout(scroll_widget)
+
         # === Detection Parameters ===
         det_group = QtWidgets.QGroupBox("Detection Parameters")
-        det_layout = QtWidgets.QFormLayout()
-        det_layout.setVerticalSpacing(10)
+        det_layout = QtWidgets.QVBoxLayout()
 
-        # Box threshold with slider
+        # Box threshold with slider (always shown)
+        thresh_form = QtWidgets.QFormLayout()
         self.det_box_thresh_spin = QtWidgets.QDoubleSpinBox()
         self.det_box_thresh_spin.setRange(0.1, 1.0)
         self.det_box_thresh_spin.setSingleStep(0.05)
         self.det_box_thresh_spin.setValue(0.7)
         self.det_box_thresh_spin.setDecimals(2)
-        det_layout.addRow(
-            "Box Threshold (0.5-0.9):",
+        thresh_form.addRow(
+            "Box Threshold:",
             self.create_slider_spinbox(self.det_box_thresh_spin, 0.1, 1.0, 0.05)
         )
-
-        # Help text
-        thresh_help = QtWidgets.QLabel("Higher = stricter detection (fewer boxes)")
+        thresh_help = QtWidgets.QLabel("Higher = stricter detection (default: 0.6)")
         thresh_help.setStyleSheet("QLabel { color: #666; font-size: 9pt; }")
-        det_layout.addRow("", thresh_help)
+        thresh_form.addRow("", thresh_help)
 
-        # Unclip ratio with slider
+        # Unclip ratio with slider (always shown)
         self.det_unclip_ratio_spin = QtWidgets.QDoubleSpinBox()
         self.det_unclip_ratio_spin.setRange(1.0, 3.0)
         self.det_unclip_ratio_spin.setSingleStep(0.1)
         self.det_unclip_ratio_spin.setValue(1.5)
         self.det_unclip_ratio_spin.setDecimals(1)
-        det_layout.addRow(
-            "Unclip Ratio (1.0-2.5):",
+        thresh_form.addRow(
+            "Unclip Ratio:",
             self.create_slider_spinbox(self.det_unclip_ratio_spin, 1.0, 3.0, 0.1)
         )
-
-        # Help text
-        unclip_help = QtWidgets.QLabel("Higher = larger boxes around text")
+        unclip_help = QtWidgets.QLabel("Higher = larger boxes (default: 2.0)")
         unclip_help.setStyleSheet("QLabel { color: #666; font-size: 9pt; }")
-        det_layout.addRow("", unclip_help)
+        thresh_form.addRow("", unclip_help)
+
+        det_layout.addLayout(thresh_form)
+
+        # Advanced detection parameters (checkbox to enable)
+        self.use_advanced_det_check = QtWidgets.QCheckBox(
+            "Use advanced detection parameters"
+        )
+        det_layout.addWidget(self.use_advanced_det_check)
+
+        self.advanced_det_widget = QtWidgets.QWidget()
+        adv_det_form = QtWidgets.QFormLayout()
+        adv_det_form.setContentsMargins(20, 5, 0, 5)
+
+        # Pixel threshold
+        self.det_thresh_spin = QtWidgets.QDoubleSpinBox()
+        self.det_thresh_spin.setRange(0.1, 1.0)
+        self.det_thresh_spin.setSingleStep(0.05)
+        self.det_thresh_spin.setValue(0.3)
+        self.det_thresh_spin.setDecimals(2)
+        adv_det_form.addRow("Pixel Threshold:", self.det_thresh_spin)
+
+        # Limit side length
+        self.det_limit_side_spin = QtWidgets.QSpinBox()
+        self.det_limit_side_spin.setRange(64, 4096)
+        self.det_limit_side_spin.setSingleStep(32)
+        self.det_limit_side_spin.setValue(960)
+        adv_det_form.addRow("Max Side Length:", self.det_limit_side_spin)
+
+        # Limit type
+        self.det_limit_type_combo = QtWidgets.QComboBox()
+        self.det_limit_type_combo.addItems(["max", "min"])
+        adv_det_form.addRow("Limit Type:", self.det_limit_type_combo)
+
+        # Detection batch size
+        self.det_batch_spin = QtWidgets.QSpinBox()
+        self.det_batch_spin.setRange(1, 32)
+        self.det_batch_spin.setValue(1)
+        adv_det_form.addRow("Detection Batch:", self.det_batch_spin)
+
+        self.advanced_det_widget.setLayout(adv_det_form)
+        self.advanced_det_widget.setEnabled(False)
+        self.use_advanced_det_check.toggled.connect(self.advanced_det_widget.setEnabled)
+        det_layout.addWidget(self.advanced_det_widget)
 
         det_group.setLayout(det_layout)
-        layout.addWidget(det_group)
+        scroll_layout.addWidget(det_group)
 
         # === Recognition Parameters ===
         rec_group = QtWidgets.QGroupBox("Recognition Parameters")
-        rec_layout = QtWidgets.QFormLayout()
-        rec_layout.setVerticalSpacing(10)
+        rec_layout = QtWidgets.QVBoxLayout()
 
-        # Batch size
+        rec_form = QtWidgets.QFormLayout()
+        # Batch size (always shown)
         self.rec_batch_spin = QtWidgets.QSpinBox()
         self.rec_batch_spin.setRange(1, 32)
         self.rec_batch_spin.setValue(6)
-        rec_layout.addRow("Batch Size:", self.rec_batch_spin)
+        rec_form.addRow("Batch Size:", self.rec_batch_spin)
+
+        rec_layout.addLayout(rec_form)
+
+        # Advanced recognition parameters (checkbox to enable)
+        self.use_advanced_rec_check = QtWidgets.QCheckBox(
+            "Use advanced recognition parameters"
+        )
+        rec_layout.addWidget(self.use_advanced_rec_check)
+
+        self.advanced_rec_widget = QtWidgets.QWidget()
+        adv_rec_form = QtWidgets.QFormLayout()
+        adv_rec_form.setContentsMargins(20, 5, 0, 5)
+
+        # Recognition score threshold
+        self.rec_score_thresh_spin = QtWidgets.QDoubleSpinBox()
+        self.rec_score_thresh_spin.setRange(0.0, 1.0)
+        self.rec_score_thresh_spin.setSingleStep(0.05)
+        self.rec_score_thresh_spin.setValue(0.0)
+        self.rec_score_thresh_spin.setDecimals(2)
+        adv_rec_form.addRow("Score Threshold:", self.rec_score_thresh_spin)
+
+        self.advanced_rec_widget.setLayout(adv_rec_form)
+        self.advanced_rec_widget.setEnabled(False)
+        self.use_advanced_rec_check.toggled.connect(self.advanced_rec_widget.setEnabled)
+        rec_layout.addWidget(self.advanced_rec_widget)
 
         rec_group.setLayout(rec_layout)
-        layout.addWidget(rec_group)
+        scroll_layout.addWidget(rec_group)
 
-        layout.addStretch()
+        scroll_layout.addStretch()
+        scroll.setWidget(scroll_widget)
+        layout.addWidget(scroll)
+
         self.tab_widget.addTab(tab, "Parameters")
 
     def create_features_tab(self):
@@ -314,10 +387,11 @@ class PaddleOCRSettingsDialog(QtWidgets.QDialog):
         )
         adv_layout.addWidget(self.use_doc_unwarp_check)
 
-        self.use_textline_orient_check = QtWidgets.QCheckBox(
-            "Text Line Orientation"
-        )
-        adv_layout.addWidget(self.use_textline_orient_check)
+        # Note: use_textline_orientation is always enabled (not shown in UI)
+        # We keep it as a hidden checkbox for compatibility
+        self.use_textline_orient_check = QtWidgets.QCheckBox()
+        self.use_textline_orient_check.setChecked(True)
+        self.use_textline_orient_check.setVisible(False)  # Hidden - always enabled
 
         adv_group.setLayout(adv_layout)
         layout.addWidget(adv_group)
@@ -419,12 +493,13 @@ class PaddleOCRSettingsDialog(QtWidgets.QDialog):
             self.use_custom_det_check.setChecked(False)
             self.det_model_dir_edit.clear()
 
-        # Recognition model
+        # Recognition model (custom model = has path specified)
         rec_dir = params.get('text_recognition_model_dir')
         if rec_dir:
             self.use_custom_rec_check.setChecked(True)
             self.rec_model_dir_edit.setText(rec_dir)
         else:
+            # No path = use official model via 'lang' parameter
             self.use_custom_rec_check.setChecked(False)
             self.rec_model_dir_edit.clear()
 
@@ -436,10 +511,31 @@ class PaddleOCRSettingsDialog(QtWidgets.QDialog):
             params.get('det_db_unclip_ratio', 1.5)
         )
 
+        # Advanced detection params
+        has_adv_det = any(key in params for key in [
+            'text_det_thresh', 'text_det_limit_side_len',
+            'text_det_limit_type', 'text_detection_batch_size'
+        ])
+        self.use_advanced_det_check.setChecked(has_adv_det)
+        if has_adv_det:
+            self.det_thresh_spin.setValue(params.get('text_det_thresh', 0.3))
+            self.det_limit_side_spin.setValue(params.get('text_det_limit_side_len', 960))
+            limit_type = params.get('text_det_limit_type', 'max')
+            idx = self.det_limit_type_combo.findText(limit_type)
+            if idx >= 0:
+                self.det_limit_type_combo.setCurrentIndex(idx)
+            self.det_batch_spin.setValue(params.get('text_detection_batch_size', 1))
+
         # Recognition params
         self.rec_batch_spin.setValue(
             params.get('rec_batch_num', 6)
         )
+
+        # Advanced recognition params
+        has_adv_rec = 'text_rec_score_thresh' in params
+        self.use_advanced_rec_check.setChecked(has_adv_rec)
+        if has_adv_rec:
+            self.rec_score_thresh_spin.setValue(params.get('text_rec_score_thresh', 0.0))
 
         # Features
         self.use_doc_orient_check.setChecked(
@@ -448,9 +544,8 @@ class PaddleOCRSettingsDialog(QtWidgets.QDialog):
         self.use_doc_unwarp_check.setChecked(
             params.get('use_doc_unwarping', False)
         )
-        self.use_textline_orient_check.setChecked(
-            params.get('use_textline_orientation', False)
-        )
+        # use_textline_orientation is always enabled
+        self.use_textline_orient_check.setChecked(True)
 
         # Performance
         self.enable_mkldnn_check.setChecked(
@@ -472,16 +567,28 @@ class PaddleOCRSettingsDialog(QtWidgets.QDialog):
         if self.use_custom_det_check.isChecked() and self.det_model_dir_edit.text():
             settings['text_detection_model_dir'] = self.det_model_dir_edit.text()
 
-        # Recognition model
+        # Recognition model (only set if using custom model)
         if self.use_custom_rec_check.isChecked() and self.rec_model_dir_edit.text():
             settings['text_recognition_model_dir'] = self.rec_model_dir_edit.text()
+        # else: use official model via 'lang' parameter (no path needed)
 
         # Detection parameters
         settings['det_db_box_thresh'] = self.det_box_thresh_spin.value()
         settings['det_db_unclip_ratio'] = self.det_unclip_ratio_spin.value()
 
+        # Advanced detection parameters (only if checkbox is checked)
+        if self.use_advanced_det_check.isChecked():
+            settings['text_det_thresh'] = self.det_thresh_spin.value()
+            settings['text_det_limit_side_len'] = self.det_limit_side_spin.value()
+            settings['text_det_limit_type'] = self.det_limit_type_combo.currentText()
+            settings['text_detection_batch_size'] = self.det_batch_spin.value()
+
         # Recognition parameters
         settings['rec_batch_num'] = self.rec_batch_spin.value()
+
+        # Advanced recognition parameters (only if checkbox is checked)
+        if self.use_advanced_rec_check.isChecked():
+            settings['text_rec_score_thresh'] = self.rec_score_thresh_spin.value()
 
         # Features
         settings['use_doc_orientation_classify'] = self.use_doc_orient_check.isChecked()
@@ -532,17 +639,27 @@ class PaddleOCRSettingsDialog(QtWidgets.QDialog):
             )
 
     def save_profile_to_file(self, profile_name, profile_config):
-        """Save profile config to YAML file"""
-        profile_file = os.path.join(
-            self.config.config_dir,
-            "profiles",
-            f"{profile_name}.yaml"
-        )
+        """Save profile config to unified config.yaml"""
+        config_file = os.path.join(self.config.config_dir, "config.yaml")
 
-        with open(profile_file, 'w', encoding='utf-8') as f:
-            yaml.dump(profile_config, f, allow_unicode=True, default_flow_style=False)
+        # Load existing config
+        if os.path.exists(config_file):
+            with open(config_file, 'r', encoding='utf-8') as f:
+                full_config = yaml.safe_load(f) or {}
+        else:
+            full_config = {'default_profile': 'cpu', 'profiles': {}}
 
-        logger.info(f"Saved profile config to {profile_file}")
+        # Update the specific profile
+        if 'profiles' not in full_config:
+            full_config['profiles'] = {}
+
+        full_config['profiles'][profile_name] = profile_config
+
+        # Save back to config.yaml
+        with open(config_file, 'w', encoding='utf-8') as f:
+            yaml.dump(full_config, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+
+        logger.info(f"Saved profile '{profile_name}' config to {config_file}")
 
     def restore_defaults(self):
         """Restore default settings"""

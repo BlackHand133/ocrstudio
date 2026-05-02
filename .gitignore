@@ -147,13 +147,14 @@ $RECYCLE.BIN/
 
 # ===== Project Specific =====
 
-# User Data (workspaces, annotations, images)
+# User Data (workspaces, annotations, images, runtime app state)
 workspaces/
-data/workspaces/
+data/
 output/
 output_det/
 output_rec/
 exports/
+logs/
 
 # Temporary files
 temp/
@@ -193,6 +194,24 @@ cache/
 docs/_build/
 docs/.doctrees/
 
+# ===== Package and Build =====
+# Ignore build artifacts but keep setup files
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# ===== Configuration =====
+# User-specific config (keep templates)
+app_config.json
+recent_workspaces.json
+
+# DO NOT ignore default config files
+!config/*.yaml
+!config/profiles/*.yaml
+
 # ===== Miscellaneous =====
 *.pid
 *.seed
@@ -200,12 +219,20 @@ docs/.doctrees/
 .editorconfig
 new_stricture.txt
 
-# Thai/Unicode named folders (encoding issues)
-*[^\x00-\x7F]*
-
 # Specific files to ignore
 nul
 
-# DO NOT ignore git config files themselves
+# DO NOT ignore important files
 !.gitignore
 !.gitattributes
+!README.md
+!LICENSE
+!requirements.txt
+!pyproject.toml
+!setup.py
+!*.sh
+!*.bat
+
+# Session/IDE state
+.claude/
+config/_backup/

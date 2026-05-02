@@ -16,21 +16,25 @@ Usage:
         filename = sanitize_filename("my file (1).jpg")
 """
 
-# Decorators
+# Decorators (Qt imported lazily inside the decorator itself)
 from modules.utils.decorators import handle_exceptions
 
-# File I/O
-from modules.utils.file_io import imread_unicode, imwrite_unicode
-
-# Image utilities
-from modules.utils.image import clip_points_to_image
-
-# Validation utilities
+# Validation utilities (pure Python + numpy — always available)
 from modules.utils.validation import (
     sanitize_annotation,
     sanitize_annotations,
-    sanitize_filename
+    sanitize_filename,
 )
+
+# File I/O and image utilities require cv2 — import conditionally so that
+# Qt-free / headless test environments don't fail on collection.
+try:
+    from modules.utils.file_io import imread_unicode, imwrite_unicode
+    from modules.utils.image import clip_points_to_image
+except ImportError:
+    imread_unicode    = None  # type: ignore[assignment]
+    imwrite_unicode   = None  # type: ignore[assignment]
+    clip_points_to_image = None  # type: ignore[assignment]
 
 __all__ = [
     # Decorators

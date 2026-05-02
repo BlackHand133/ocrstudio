@@ -11,7 +11,7 @@ import os
 import json
 import shutil
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 from datetime import datetime
 
 from modules.constants import WORKSPACE_VERSION, WORKSPACE_FILE
@@ -84,20 +84,21 @@ class WorkspaceStorage:
                 return None
 
             with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+                data: Dict[str, Any] = json.load(f)
 
             return data
 
         except json.JSONDecodeError as e:
             logger.error(f"Failed to decode JSON from {file_path}: {e}")
             return None
-        except Exception as e:
-            logger.error(f"Failed to read {file_path}: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to read {file_path}")
             return None
 
     def write_json(self, file_path: str, data: Dict) -> bool:
         """
-        Write JSON file.
+        Write JSON file atomically using temp file + rename pattern.
+        This ensures data integrity even if write fails midway.
 
         Args:
             file_path: Path to JSON file
@@ -106,19 +107,45 @@ class WorkspaceStorage:
         Returns:
             True if successful, False otherwise
         """
+        import tempfile
+        import shutil
+
         try:
             # Ensure directory exists
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
-            # Write with pretty formatting
-            with open(file_path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            # Write to temporary file first (atomic operation)
+            temp_fd, temp_path = tempfile.mkstemp(
+                dir=os.path.dirname(file_path),
+                prefix='.tmp_',
+                suffix='.json'
+            )
 
-            logger.debug(f"Wrote JSON to {file_path}")
-            return True
+            try:
+                with os.fdopen(temp_fd, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
 
-        except Exception as e:
-            logger.error(f"Failed to write {file_path}: {e}")
+                # Atomic rename: replace old file with new one
+                # On Windows, need to remove target first
+                if os.path.exists(file_path):
+                    if os.name == 'nt':  # Windows
+                        os.replace(temp_path, file_path)
+                    else:  # Unix/Linux/Mac
+                        os.rename(temp_path, file_path)
+                else:
+                    os.rename(temp_path, file_path)
+
+                logger.debug(f"Wrote JSON to {file_path} (atomic)")
+                return True
+
+            except Exception as e:
+                # Clean up temp file on error
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                raise e
+
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to write {file_path}")
             return False
 
     # ===== Workspace File Operations =====
@@ -236,8 +263,8 @@ class WorkspaceStorage:
             logger.info(f"Created workspace directory: {workspace_id}")
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to create workspace directory {workspace_id}: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to create workspace directory {workspace_id}")
             return False
 
     def delete_workspace_directory(self, workspace_id: str) -> bool:
@@ -261,8 +288,8 @@ class WorkspaceStorage:
             logger.info(f"Deleted workspace directory: {workspace_id}")
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to delete workspace directory {workspace_id}: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to delete workspace directory {workspace_id}")
             return False
 
     def delete_version_file(self, workspace_id: str, version: str) -> bool:
@@ -287,8 +314,8 @@ class WorkspaceStorage:
             logger.info(f"Deleted version file: {version}")
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to delete version file {version}: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to delete version file {version}")
             return False
 
     def copy_version_file(self, workspace_id: str, source_version: str,
@@ -320,8 +347,8 @@ class WorkspaceStorage:
             logger.info(f"Copied version {source_version} to {target_version}")
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to copy version file: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to copy version file")
             return False
 
     # ===== List Operations =====
@@ -348,8 +375,8 @@ class WorkspaceStorage:
 
             return workspace_ids
 
-        except Exception as e:
-            logger.error(f"Failed to list workspaces: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to list workspaces")
             return []
 
     def list_version_files(self, workspace_id: str) -> list:
@@ -380,6 +407,6 @@ class WorkspaceStorage:
 
             return versions
 
-        except Exception as e:
-            logger.error(f"Failed to list versions: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to list versions")
             return []

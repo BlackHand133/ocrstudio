@@ -34,7 +34,7 @@ class TextlineOrientationClassifier:
     Output: 0_degree หรือ 180_degree
     """
     
-    def __init__(self, model_dir: str = None):
+    def __init__(self, model_dir: Optional[str] = None):
         """
         Initialize classifier
         
@@ -58,8 +58,9 @@ class TextlineOrientationClassifier:
                 model_dir = config.get_path('model_textline_orientation')
                 if not model_dir or not os.path.exists(model_dir):
                     raise ValueError("Model path not found in config")
-            except:
+            except Exception as e:
                 # Fallback: ค้นหา model_dir จาก root project
+                self.logger.debug(f"Config lookup failed, using fallback path: {e}")
                 current_dir = os.path.dirname(os.path.abspath(__file__))
                 project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
                 model_dir = os.path.join(project_root, MODEL_TEXTLINE_ORIENTATION_PATH)
@@ -198,6 +199,7 @@ class TextlineOrientationClassifier:
             # output shape: (1, 2) หรือ (1, 1, 2)
             output = output.squeeze()  # remove batch dimension
             
+            pred_idx: int
             if len(output.shape) == 0:
                 # scalar output
                 pred_idx = 0
@@ -206,9 +208,9 @@ class TextlineOrientationClassifier:
                 # Softmax
                 exp_scores = np.exp(output - np.max(output))
                 probs = exp_scores / np.sum(exp_scores)
-                
+
                 # Argmax
-                pred_idx = np.argmax(probs)
+                pred_idx = int(np.argmax(probs))
                 confidence = float(probs[pred_idx])
             
             label = self.labels[pred_idx]

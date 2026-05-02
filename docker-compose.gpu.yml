@@ -1,0 +1,37 @@
+version: "3.9"
+
+# ============================================================
+# Ajan OCR — GPU override for docker-compose
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.gpu.yml up
+# ============================================================
+
+services:
+  ajan:
+    build:
+      context: .
+      target: runtime-gpu
+    image: ajan-gpu:latest
+
+    environment:
+      MODE: gui
+      QT_QPA_PLATFORM: xcb
+
+    # NVIDIA GPU device reservation
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    # Alternative (Docker < 19.03 / docker-compose < 1.28):
+    # runtime: nvidia
+
+  cli:
+    build:
+      context: .
+      target: runtime-gpu
+    image: ajan-gpu:latest

@@ -24,24 +24,14 @@ class MaskHandler:
         if not self.mainwin.img_key:
             return
 
-        from modules.gui.items.mask_item import MaskQuadItem
-
         # Convert rect to 4 points
         x1, y1 = rect.left(), rect.top()
         x2, y2 = rect.right(), rect.bottom()
         pts = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
 
-        # Create mask item
-        mask = MaskQuadItem(pts, self.current_mask_color)
-        self.mainwin.scene.addItem(mask)
-        self.mainwin.box_items.append(mask)
+        # Use annotation_handler to add mask (consistent with normal annotations)
+        self.mainwin.annotation_handler.add_box_item(pts, '###', 'MaskQuad', self.current_mask_color.name())
 
-        # Add to annotations
-        key = self.mainwin.img_key
-        if key not in self.mainwin.annotations:
-            self.mainwin.annotations[key] = []
-        self.mainwin.annotations[key].append(mask)
-        
         # Update UI
         self._update_ui()
         
@@ -52,18 +42,8 @@ class MaskHandler:
         if not self.mainwin.img_key:
             return
 
-        from modules.gui.items.mask_item import MaskPolygonItem
-
-        # Create mask item
-        mask = MaskPolygonItem(points, self.current_mask_color)
-        self.mainwin.scene.addItem(mask)
-        self.mainwin.box_items.append(mask)
-
-        # Add to annotations
-        key = self.mainwin.img_key
-        if key not in self.mainwin.annotations:
-            self.mainwin.annotations[key] = []
-        self.mainwin.annotations[key].append(mask)
+        # Use annotation_handler to add mask (consistent with normal annotations)
+        self.mainwin.annotation_handler.add_box_item(points, '###', 'MaskPolygon', self.current_mask_color.name())
 
         # Update UI
         self._update_ui()

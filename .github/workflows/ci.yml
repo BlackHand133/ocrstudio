@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  # ─────────────────────────────────────────────
+  # Job 1: Lint (black, isort, flake8, mypy)
+  # ─────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install lint dependencies
+        run: |
+          pip install --upgrade pip
+          pip install black isort flake8 mypy
+          # Install stubs / type-checked pure-Python deps only
+          pip install numpy pyyaml
+
+      - name: black --check
+        run: black --check modules/ tests/
+
+      - name: isort --check
+        run: isort --check-only modules/ tests/
+
+      - name: flake8
+        run: |
+          flake8 modules/ tests/ \
+            --max-line-length=100 \
+            --extend-ignore=E203,W503 \
+            --exclude=modules/gui/
+
+      - name: mypy
+        run: |
+          mypy modules/core/ modules/utils/ modules/config/ \
+            --ignore-missing-imports \
+            --no-error-summary
+
+  # ─────────────────────────────────────────────
+  # Job 2: Unit tests (no Qt, no PaddleOCR)
+  # ─────────────────────────────────────────────
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest pytest-cov numpy pyyaml
+
+      - name: Run unit tests (headless, no Qt)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python -m pytest tests/unit/ \
+            -m "not gui and not slow" \
+            --tb=short \
+            -q \
+            --cov=modules/core \
+            --cov=modules/utils \
+            --cov=modules/config \
+            --cov-report=term-missing \
+            --cov-fail-under=30
+
+  # ─────────────────────────────────────────────
+  # Job 3: Docker build (CPU image only)
+  # ─────────────────────────────────────────────
+  docker-build:
+    name: Docker build (CPU)
+    runs-on: ubuntu-latest
+    # Only run on push to main/master (not every PR to save minutes)
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build CPU image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: runtime-cpu
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: ajan-ocr:cpu-ci

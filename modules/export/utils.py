@@ -1,10 +1,9 @@
 """
-Image processing utilities for export operations.
+Image processing utilities and validation for export operations.
 
-This module provides reusable image processing functions:
-- Mask handling
-- Orientation detection
-- Image cropping (rotated and bounding box)
+This module provides:
+- ExportValidationError: raised before writing files when the export would be empty/invalid
+- Reusable image processing functions (mask handling, cropping, orientation)
 """
 
 import cv2
@@ -13,6 +12,29 @@ import logging
 from typing import List, Dict, Tuple, Optional
 
 logger = logging.getLogger("TextDetGUI")
+
+
+class ExportValidationError(ValueError):
+    """Raised when an export request would produce empty or invalid output.
+
+    Raise this *before* any files are written so callers can show the error
+    message to the user without leaving partial output on disk.
+
+    Attributes:
+        message: Human-readable description of what went wrong.
+
+    Example::
+
+        if not annotated_keys:
+            raise ExportValidationError(
+                "No annotated images selected for export. "
+                "Please annotate at least one image and try again."
+            )
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
 
 
 def is_valid_box(pts) -> bool:

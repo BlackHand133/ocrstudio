@@ -8,6 +8,7 @@ This module handles version control for workspaces:
 - Version listing and metadata
 """
 
+import json
 import logging
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
@@ -37,6 +38,33 @@ class VersionManager:
         """
         self.storage = storage
 
+    def _validate_version_data(self, data: Dict) -> Dict:
+        """
+        Validate and ensure version data has all required fields.
+
+        Args:
+            data: Version data dict
+
+        Returns:
+            Validated data dict with all required fields
+        """
+        if data is None:
+            data = {}
+
+        # Ensure required fields exist with defaults
+        if 'annotations' not in data:
+            data['annotations'] = {}
+        if 'transforms' not in data:
+            data['transforms'] = {}
+        if 'metadata' not in data:
+            data['metadata'] = {
+                "total_images": 0,
+                "annotated_images": 0,
+                "total_annotations": 0
+            }
+
+        return data
+
     # ===== Version Loading/Saving =====
 
     def load_version(self, workspace_id: str, version: str) -> Optional[Dict]:
@@ -59,6 +87,9 @@ class VersionManager:
         if data is None:
             logger.error(f"Failed to load version {version}")
             return None
+
+        # Validate and ensure all required fields exist
+        data = self._validate_version_data(data)
 
         logger.info(f"Loaded version {version} from workspace {workspace_id}")
         return data
@@ -184,8 +215,8 @@ class VersionManager:
 
             return True, f"Version {new_version} created successfully"
 
-        except Exception as e:
-            logger.error(f"Failed to create version {new_version}: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to create version {new_version}")
             return False, str(e)
 
     # ===== Version Switching =====
@@ -230,8 +261,8 @@ class VersionManager:
 
             return success
 
-        except Exception as e:
-            logger.error(f"Failed to switch version: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to switch version")
             return False
 
     # ===== Version Deletion =====
@@ -287,8 +318,8 @@ class VersionManager:
             logger.info(f"Deleted version {version} from workspace {workspace_id}")
             return True, f"Version {version} deleted successfully"
 
-        except Exception as e:
-            logger.error(f"Failed to delete version {version}: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to delete version {version}")
             return False, str(e)
 
     # ===== Version Listing =====
@@ -335,8 +366,8 @@ class VersionManager:
 
             return version_list
 
-        except Exception as e:
-            logger.error(f"Failed to get version list: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to get version list")
             return []
 
     # ===== Version Info =====
@@ -354,7 +385,8 @@ class VersionManager:
         workspace_data = self.storage.read_workspace_file(workspace_id)
 
         if workspace_data:
-            return workspace_data.get('versions', {}).get('current')
+            current: Optional[str] = workspace_data.get('versions', {}).get('current')
+            return current
 
         return None
 

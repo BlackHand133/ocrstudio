@@ -73,3 +73,28 @@ class BaseAnnotationItem:
         if self.text_item:
             self.text_item.setPlainText(text)
             self.update_text_position()
+
+    def _save_to_parent(self):
+        """Save annotation changes to parent main_window"""
+        try:
+            # Get scene from the item (self is the QGraphicsItem)
+            scene = self.scene()
+            if not scene:
+                return
+
+            # Get main_window from scene's views
+            views = scene.views()
+            if not views:
+                return
+
+            view = views[0]
+            if hasattr(view, 'parent') and view.parent:
+                main_window = view.parent
+                if hasattr(main_window, 'annotation_handler'):
+                    main_window.annotation_handler.save_current_annotation()
+                    main_window.mark_as_modified()
+        except Exception as e:
+            # Silent fail - don't crash the app
+            import logging
+            logger = logging.getLogger("TextDetGUI")
+            logger.debug(f"Failed to save annotation: {e}")

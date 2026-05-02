@@ -33,15 +33,29 @@ class VersionManagerDialog(QtWidgets.QDialog):
 
         # ===== Version List =====
         self.version_table = QtWidgets.QTableWidget()
-        self.version_table.setColumnCount(6)
+        self.version_table.setColumnCount(9)
         self.version_table.setHorizontalHeaderLabels([
-            'Version', 'Description', 'Created', 'Modified', 'Annotations', 'Status'
+            'Version', 'Description', 'Images', 'Annotated', 'Text Boxes', 'Masks', 'Size', 'Modified', 'Status'
         ])
-        self.version_table.horizontalHeader().setStretchLastSection(True)
+        self.version_table.horizontalHeader().setStretchLastSection(False)
+
+        # Set column widths for better layout
+        header = self.version_table.horizontalHeader()
+        header.resizeSection(0, 70)   # Version
+        header.resizeSection(2, 60)   # Images
+        header.resizeSection(3, 80)   # Annotated
+        header.resizeSection(4, 80)   # Text Boxes
+        header.resizeSection(5, 60)   # Masks
+        header.resizeSection(6, 70)   # Size
+        header.resizeSection(7, 120)  # Modified
+        header.resizeSection(8, 90)   # Status
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)  # Description stretches
+
         self.version_table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         self.version_table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         self.version_table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.version_table.itemSelectionChanged.connect(self._on_selection_changed)
+        self.version_table.setAlternatingRowColors(True)
         layout.addWidget(self.version_table)
 
         # ===== Info Panel =====
@@ -51,14 +65,20 @@ class VersionManagerDialog(QtWidgets.QDialog):
         self.info_version = QtWidgets.QLabel("-")
         self.info_description = QtWidgets.QLabel("-")
         self.info_images = QtWidgets.QLabel("-")
-        self.info_annotations = QtWidgets.QLabel("-")
+        self.info_annotated = QtWidgets.QLabel("-")
+        self.info_text_boxes = QtWidgets.QLabel("-")
+        self.info_masks = QtWidgets.QLabel("-")
+        self.info_size = QtWidgets.QLabel("-")
         self.info_created = QtWidgets.QLabel("-")
         self.info_modified = QtWidgets.QLabel("-")
 
         info_layout.addRow("Version:", self.info_version)
         info_layout.addRow("Description:", self.info_description)
         info_layout.addRow("Total Images:", self.info_images)
-        info_layout.addRow("Total Annotations:", self.info_annotations)
+        info_layout.addRow("Annotated Images:", self.info_annotated)
+        info_layout.addRow("Text Annotations:", self.info_text_boxes)
+        info_layout.addRow("Mask Items:", self.info_masks)
+        info_layout.addRow("File Size:", self.info_size)
         info_layout.addRow("Created:", self.info_created)
         info_layout.addRow("Last Modified:", self.info_modified)
 
@@ -111,47 +131,87 @@ class VersionManagerDialog(QtWidgets.QDialog):
 
             version = version_data.get('version', '')
             description = version_data.get('description', '')
-            created = version_data.get('created_at', '')
             modified = version_data.get('modified_at', '')
             is_current = version_data.get('is_current', False)
             metadata = version_data.get('metadata', {})
 
-            # Format dates
-            try:
-                created_dt = datetime.fromisoformat(created)
-                created = created_dt.strftime("%Y-%m-%d %H:%M")
-            except:
-                pass
-
+            # Format modified date
             try:
                 modified_dt = datetime.fromisoformat(modified)
                 modified = modified_dt.strftime("%Y-%m-%d %H:%M")
-            except:
-                pass
+            except (ValueError, TypeError):
+                modified = "-"
 
-            # Version
+            # Extract metadata
+            total_images = metadata.get('total_images', 0)
+            annotated_images = metadata.get('annotated_images', 0)
+            text_boxes = metadata.get('text_boxes', 0)
+            masks = metadata.get('masks', 0)
+            file_size = metadata.get('file_size', 0)
+
+            # Format file size
+            if file_size > 0:
+                if file_size < 1024:
+                    size_str = f"{file_size} B"
+                elif file_size < 1024 * 1024:
+                    size_str = f"{file_size / 1024:.1f} KB"
+                else:
+                    size_str = f"{file_size / (1024 * 1024):.1f} MB"
+            else:
+                size_str = "-"
+
+            # Column 0: Version
             item = QtWidgets.QTableWidgetItem(version)
             if is_current:
                 item.setForeground(QtCore.Qt.blue)
                 font = item.font()
                 font.setBold(True)
                 item.setFont(font)
+            item.setData(Qt.UserRole, version_data)
             self.version_table.setItem(row, 0, item)
 
-            # Description
-            self.version_table.setItem(row, 1, QtWidgets.QTableWidgetItem(description))
+            # Column 1: Description
+            desc_item = QtWidgets.QTableWidgetItem(description)
+            if is_current:
+                font = desc_item.font()
+                font.setBold(True)
+                desc_item.setFont(font)
+            self.version_table.setItem(row, 1, desc_item)
 
-            # Created
-            self.version_table.setItem(row, 2, QtWidgets.QTableWidgetItem(created))
+            # Column 2: Total Images
+            images_item = QtWidgets.QTableWidgetItem(str(total_images))
+            images_item.setTextAlignment(Qt.AlignCenter)
+            self.version_table.setItem(row, 2, images_item)
 
-            # Modified
-            self.version_table.setItem(row, 3, QtWidgets.QTableWidgetItem(modified))
+            # Column 3: Annotated Images
+            annotated_item = QtWidgets.QTableWidgetItem(f"{annotated_images}/{total_images}")
+            annotated_item.setTextAlignment(Qt.AlignCenter)
+            if annotated_images == total_images and total_images > 0:
+                annotated_item.setForeground(QtCore.Qt.darkGreen)
+            self.version_table.setItem(row, 3, annotated_item)
 
-            # Annotations count
-            total_annotations = metadata.get('total_annotations', 0)
-            self.version_table.setItem(row, 4, QtWidgets.QTableWidgetItem(str(total_annotations)))
+            # Column 4: Text Boxes
+            text_item = QtWidgets.QTableWidgetItem(str(text_boxes))
+            text_item.setTextAlignment(Qt.AlignCenter)
+            self.version_table.setItem(row, 4, text_item)
 
-            # Status
+            # Column 5: Masks
+            mask_item = QtWidgets.QTableWidgetItem(str(masks))
+            mask_item.setTextAlignment(Qt.AlignCenter)
+            if masks > 0:
+                mask_item.setForeground(QtCore.Qt.darkMagenta)
+            self.version_table.setItem(row, 5, mask_item)
+
+            # Column 6: File Size
+            size_item = QtWidgets.QTableWidgetItem(size_str)
+            size_item.setTextAlignment(Qt.AlignCenter)
+            self.version_table.setItem(row, 6, size_item)
+
+            # Column 7: Modified Date
+            modified_item = QtWidgets.QTableWidgetItem(modified)
+            self.version_table.setItem(row, 7, modified_item)
+
+            # Column 8: Status
             status = "✓ Current" if is_current else ""
             status_item = QtWidgets.QTableWidgetItem(status)
             if is_current:
@@ -159,10 +219,7 @@ class VersionManagerDialog(QtWidgets.QDialog):
                 font = status_item.font()
                 font.setBold(True)
                 status_item.setFont(font)
-            self.version_table.setItem(row, 5, status_item)
-
-            # Store version data
-            item.setData(Qt.UserRole, version_data)
+            self.version_table.setItem(row, 8, status_item)
 
         # Auto resize columns
         self.version_table.resizeColumnsToContents()
@@ -186,11 +243,43 @@ class VersionManagerDialog(QtWidgets.QDialog):
 
         # Show information
         self.info_version.setText(version_data.get('version', '-'))
-        self.info_description.setText(version_data.get('description', '-'))
+
+        description = version_data.get('description', '-')
+        if not description or description == '-':
+            description = "(No description)"
+        self.info_description.setText(description)
 
         metadata = version_data.get('metadata', {})
-        self.info_images.setText(str(metadata.get('total_images', 0)))
-        self.info_annotations.setText(str(metadata.get('total_annotations', 0)))
+        total_images = metadata.get('total_images', 0)
+        annotated_images = metadata.get('annotated_images', 0)
+        text_boxes = metadata.get('text_boxes', 0)
+        masks = metadata.get('masks', 0)
+        file_size = metadata.get('file_size', 0)
+
+        # Display statistics with progress indicators
+        self.info_images.setText(str(total_images))
+
+        # Annotated images with percentage
+        if total_images > 0:
+            percent = (annotated_images / total_images) * 100
+            self.info_annotated.setText(f"{annotated_images} ({percent:.1f}%)")
+        else:
+            self.info_annotated.setText("0")
+
+        self.info_text_boxes.setText(str(text_boxes))
+        self.info_masks.setText(str(masks))
+
+        # Format file size
+        if file_size > 0:
+            if file_size < 1024:
+                size_str = f"{file_size} B"
+            elif file_size < 1024 * 1024:
+                size_str = f"{file_size / 1024:.1f} KB"
+            else:
+                size_str = f"{file_size / (1024 * 1024):.2f} MB"
+        else:
+            size_str = "-"
+        self.info_size.setText(size_str)
 
         created = version_data.get('created_at', '-')
         modified = version_data.get('modified_at', '-')
@@ -198,13 +287,13 @@ class VersionManagerDialog(QtWidgets.QDialog):
         try:
             created_dt = datetime.fromisoformat(created)
             self.info_created.setText(created_dt.strftime("%Y-%m-%d %H:%M:%S"))
-        except:
+        except (ValueError, TypeError):
             self.info_created.setText(created)
 
         try:
             modified_dt = datetime.fromisoformat(modified)
             self.info_modified.setText(modified_dt.strftime("%Y-%m-%d %H:%M:%S"))
-        except:
+        except (ValueError, TypeError):
             self.info_modified.setText(modified)
 
         # Enable/disable buttons
@@ -217,7 +306,7 @@ class VersionManagerDialog(QtWidgets.QDialog):
         self.btn_delete.setEnabled(not is_current)
 
     def switch_to_version(self):
-        """Switch to selected version"""
+        """Switch to selected version with progress indicator"""
         selected_rows = self.version_table.selectedItems()
         if not selected_rows:
             return
@@ -231,6 +320,16 @@ class VersionManagerDialog(QtWidgets.QDialog):
 
         version = version_data.get('version', '')
 
+        # Don't switch to current version
+        current_version = self.workspace_handler.current_version
+        if version == current_version:
+            QtWidgets.QMessageBox.information(
+                self,
+                "Already Current",
+                f"Version '{version}' is already the current version."
+            )
+            return
+
         # Confirm
         reply = QtWidgets.QMessageBox.question(
             self,
@@ -242,18 +341,44 @@ class VersionManagerDialog(QtWidgets.QDialog):
         )
 
         if reply == QtWidgets.QMessageBox.Yes:
-            success = self.workspace_handler.switch_version(version)
+            # Show progress dialog
+            progress = QtWidgets.QProgressDialog(
+                f"Switching to version '{version}'...",
+                None,  # No cancel button
+                0, 0,  # Indeterminate progress
+                self
+            )
+            progress.setWindowTitle("Version Switch")
+            progress.setWindowModality(Qt.WindowModal)
+            progress.setCancelButton(None)
+            progress.setMinimumDuration(0)
+            progress.setValue(0)
 
-            if success:
-                QtWidgets.QMessageBox.information(
-                    self, "Success", f"Switched to version '{version}'"
-                )
-                self._load_versions()
-                # Emit signal or close dialog to refresh main window
-                self.accept()
-            else:
+            # Process events to show dialog
+            QtWidgets.QApplication.processEvents()
+
+            try:
+                success = self.workspace_handler.switch_version(version)
+
+                progress.close()
+
+                if success:
+                    QtWidgets.QMessageBox.information(
+                        self, "Success", f"Switched to version '{version}'"
+                    )
+                    self._load_versions()
+                    # Close dialog to refresh main window
+                    self.accept()
+                else:
+                    QtWidgets.QMessageBox.critical(
+                        self, "Error", "Failed to switch version"
+                    )
+            except Exception as e:
+                progress.close()
                 QtWidgets.QMessageBox.critical(
-                    self, "Error", "Failed to switch version"
+                    self,
+                    "Error",
+                    f"Failed to switch version:\n{str(e)}"
                 )
 
     def delete_version(self):

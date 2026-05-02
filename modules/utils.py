@@ -24,7 +24,7 @@ def handle_exceptions(func):
             QtWidgets.QMessageBox.critical(
                 parent,
                 "Error",
-                f"เกิดข้อผิดพลาดในฟังก์ชัน {func.__name__}:\n{e}"
+                f"An error occurred in function {func.__name__}:\n{e}"
             )
     return wrapper
 

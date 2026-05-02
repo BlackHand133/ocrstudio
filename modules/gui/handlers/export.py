@@ -28,22 +28,23 @@ class ExportHandler:
     1. Shows dialogs to get user configuration
     2. Delegates to DetectionExporter or RecognitionExporter
     3. Handles only GUI-specific logic
+
+    Data access: self.state (AppState) for annotations / image_items.
+    Qt widgets: self.main_window.
+    Note: The underlying exporters (DetectionExporter / RecognitionExporter)
+    still receive main_window for now — they will be migrated to AppState in
+    a later phase.
     """
 
-    def __init__(self, main_window):
-        """
-        Initialize export handler.
-
-        Args:
-            main_window: Reference to MainWindow instance
-        """
+    def __init__(self, state, services, main_window):
+        self.state       = state
+        self.services    = services
         self.main_window = main_window
 
-        # Create exporters
-        self.detection_exporter = DetectionExporter(main_window)
+        self.detection_exporter   = DetectionExporter(main_window)
         self.recognition_exporter = RecognitionExporter(main_window)
 
-        logger.info("ExportHandler initialized with new modular exporters")
+        logger.info("ExportHandler initialised")
 
     @handle_exceptions
     def save_labels_detection(self):
@@ -57,7 +58,7 @@ class ExportHandler:
 
         # Check if any annotations are selected
         keys = [
-            k for k, ann in self.main_window.annotations.items()
+            k for k, ann in self.state.annotations.items()
             if ann and self.main_window.image_handler.is_item_checked(k)
         ]
 
@@ -129,10 +130,10 @@ class ExportHandler:
 
         # Count crops
         crops_count = 0
-        for key, full in self.main_window.image_items:
+        for key, full in self.state.image_items:
             if not self.main_window.image_handler.is_item_checked(key):
                 continue
-            for ann in self.main_window.annotations.get(key, []):
+            for ann in self.state.annotations.get(key, []):
                 # Skip mask items
                 from modules.export import utils as export_utils
                 if not export_utils.is_mask_item(ann):

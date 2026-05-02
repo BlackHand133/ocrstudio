@@ -8,6 +8,30 @@ with automatic boundary clipping to prevent overflow
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtCore import Qt, QRectF, QPointF
 from typing import List, Union
+import logging
+
+logger = logging.getLogger("TextDetGUI")
+
+
+def _save_mask_to_parent(item):
+    """Helper function to save mask annotation changes to parent main_window"""
+    try:
+        scene = item.scene()
+        if not scene:
+            return
+
+        views = scene.views()
+        if not views:
+            return
+
+        view = views[0]
+        if hasattr(view, 'parent') and view.parent:
+            main_window = view.parent
+            if hasattr(main_window, 'annotation_handler'):
+                main_window.annotation_handler.save_current_annotation()
+                main_window.mark_as_modified()
+    except Exception as e:
+        logger.debug(f"Failed to save mask annotation: {e}")
 
 
 class MaskQuadItem(QtWidgets.QGraphicsRectItem):
@@ -181,7 +205,10 @@ class MaskQuadItem(QtWidgets.QGraphicsRectItem):
         # Ensure item is within bounds after release
         self._clip_to_bounds()
         super().mouseReleaseEvent(event)
-    
+
+        # Save annotation after move/resize
+        _save_mask_to_parent(self)
+
     def itemChange(self, change, value):
         """Override to prevent moving outside image bounds"""
         if change == QtWidgets.QGraphicsItem.ItemPositionChange and self.image_bounds:
@@ -371,7 +398,10 @@ class MaskPolygonItem(QtWidgets.QGraphicsPolygonItem):
         # Ensure vertices are within bounds after release
         self._clip_polygon_to_bounds()
         super().mouseReleaseEvent(event)
-    
+
+        # Save annotation after move/resize
+        _save_mask_to_parent(self)
+
     def itemChange(self, change, value):
         """Override to prevent moving outside image bounds"""
         if change == QtWidgets.QGraphicsItem.ItemPositionChange and self.image_bounds:

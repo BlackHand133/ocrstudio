@@ -9,12 +9,14 @@ This module provides functions for:
 
 import re
 import logging
+from typing import Any
+
 import numpy as np
 
 logger = logging.getLogger("TextDetGUI")
 
 
-def sanitize_annotation(annotation: dict) -> dict:
+def sanitize_annotation(annotation: Any) -> Any:
     """
     Convert numpy types to Python native types for JSON serialization.
 

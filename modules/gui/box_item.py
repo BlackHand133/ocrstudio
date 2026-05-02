@@ -169,6 +169,9 @@ class BoxItem(BaseAnnotationItem, QtWidgets.QGraphicsRectItem):
         # Ensure item is within bounds after release
         self._clip_to_bounds()
         super().mouseReleaseEvent(event)
+
+        # Save annotation after move/resize
+        self._save_to_parent()
     
     def itemChange(self, change, value):
         """Override to prevent moving outside image bounds"""

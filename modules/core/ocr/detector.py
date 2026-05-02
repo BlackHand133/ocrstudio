@@ -152,27 +152,6 @@ class TextDetector:
         except Exception as e:
             self.logger.warning(f"ConfigManager not available: {e}")
 
-        # Priority 3: Fallback to old config_loader (for transition period)
-        try:
-            from modules.config_loader import get_paddleocr_params, get_loader
-
-            loader = get_loader()
-
-            if profile is None:
-                profile = loader.get_default_profile_name()
-                self.logger.info(f"Using default profile from old config: {profile}")
-            else:
-                self.logger.info(f"Using specified profile from old config: {profile}")
-
-            params = get_paddleocr_params(profile)
-
-            self.logger.debug(f"Loaded params from old config_loader: {params}")
-
-            return params, profile
-
-        except Exception as e:
-            self.logger.warning(f"Failed to load from old config_loader: {e}")
-
         # Fallback: Hard-coded defaults
         self.logger.warning("Using fallback hard-coded config")
         return {

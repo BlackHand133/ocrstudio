@@ -44,10 +44,38 @@ class AugmentationDialog(QtWidgets.QDialog):
         split_group.setLayout(split_layout)
         layout.addWidget(split_group)
         
+        # === Quick Presets ===
+        preset_group = QtWidgets.QGroupBox("Quick Presets")
+        preset_layout = QtWidgets.QHBoxLayout()
+
+        btn_preset_light = QtWidgets.QPushButton("Light")
+        btn_preset_light.setToolTip("Rotation + Brightness only")
+        btn_preset_light.clicked.connect(self._apply_preset_light)
+
+        btn_preset_medium = QtWidgets.QPushButton("Medium")
+        btn_preset_medium.setToolTip("Rotation + Brightness + Blur + Noise")
+        btn_preset_medium.clicked.connect(self._apply_preset_medium)
+
+        btn_preset_heavy = QtWidgets.QPushButton("Heavy")
+        btn_preset_heavy.setToolTip("All geometric + color + noise")
+        btn_preset_heavy.clicked.connect(self._apply_preset_heavy)
+
+        btn_preset_clear = QtWidgets.QPushButton("Clear All")
+        btn_preset_clear.clicked.connect(self._clear_all_augmentations)
+
+        preset_layout.addWidget(btn_preset_light)
+        preset_layout.addWidget(btn_preset_medium)
+        preset_layout.addWidget(btn_preset_heavy)
+        preset_layout.addStretch()
+        preset_layout.addWidget(btn_preset_clear)
+
+        preset_group.setLayout(preset_layout)
+        layout.addWidget(preset_group)
+
         # === Mode Selection ===
         mode_group = QtWidgets.QGroupBox("Augmentation Mode")
         mode_layout = QtWidgets.QVBoxLayout()
-        
+
         self.radio_combinatorial = QtWidgets.QRadioButton(
             "Combinatorial (create separate augmentations)"
         )
@@ -55,7 +83,7 @@ class AugmentationDialog(QtWidgets.QDialog):
         self.radio_sequential = QtWidgets.QRadioButton(
             "Sequential (apply multiple augmentations to same image)"
         )
-        
+
         mode_layout.addWidget(self.radio_combinatorial)
         mode_layout.addWidget(self.radio_sequential)
         mode_group.setLayout(mode_layout)
@@ -455,3 +483,55 @@ class AugmentationDialog(QtWidgets.QDialog):
         
         self.result = config
         super().accept()
+
+    def _clear_all_augmentations(self):
+        """Clear all augmentation selections"""
+        checkboxes = [
+            self.check_rotation, self.check_shear, self.check_scale,
+            self.check_brightness, self.check_color_jitter, self.check_grayscale,
+            self.check_blur, self.check_noise, self.check_erasing
+        ]
+
+        # Add mode-specific checkboxes
+        if self.mode == 'detection' and hasattr(self, 'check_perspective'):
+            checkboxes.append(self.check_perspective)
+        if self.mode == 'recognition':
+            if hasattr(self, 'check_crop'):
+                checkboxes.append(self.check_crop)
+            if hasattr(self, 'check_sharpen'):
+                checkboxes.append(self.check_sharpen)
+
+        for cb in checkboxes:
+            cb.setChecked(False)
+
+    def _apply_preset_light(self):
+        """Apply light augmentation preset"""
+        self._clear_all_augmentations()
+        self.check_rotation.setChecked(True)
+        self.check_brightness.setChecked(True)
+
+    def _apply_preset_medium(self):
+        """Apply medium augmentation preset"""
+        self._clear_all_augmentations()
+        self.check_rotation.setChecked(True)
+        self.check_brightness.setChecked(True)
+        self.check_blur.setChecked(True)
+        self.check_noise.setChecked(True)
+
+    def _apply_preset_heavy(self):
+        """Apply heavy augmentation preset"""
+        self._clear_all_augmentations()
+        # Geometric
+        self.check_rotation.setChecked(True)
+        self.check_shear.setChecked(True)
+        self.check_scale.setChecked(True)
+        if self.mode == 'detection' and hasattr(self, 'check_perspective'):
+            self.check_perspective.setChecked(True)
+
+        # Color
+        self.check_brightness.setChecked(True)
+        self.check_color_jitter.setChecked(True)
+
+        # Noise
+        self.check_blur.setChecked(True)
+        self.check_noise.setChecked(True)

@@ -8,13 +8,15 @@ This module provides file operations that support Unicode paths:
 """
 
 import logging
+from typing import List, Optional
+
 import cv2
 import numpy as np
 
 logger = logging.getLogger("TextDetGUI")
 
 
-def imread_unicode(filepath: str) -> np.ndarray:
+def imread_unicode(filepath: str) -> Optional[np.ndarray]:
     """
     Read image with Unicode path support (Thai, Chinese, etc.).
 
@@ -37,8 +39,8 @@ def imread_unicode(filepath: str) -> np.ndarray:
         with open(filepath, 'rb') as f:
             file_bytes = np.asarray(bytearray(f.read()), dtype=np.uint8)
 
-        # Decode to image
-        img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+        # Decode to image — cv2 stubs unavailable, so mypy sees Any
+        img: np.ndarray = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)  # type: ignore[assignment]
         return img
 
     except Exception as e:
@@ -46,7 +48,7 @@ def imread_unicode(filepath: str) -> np.ndarray:
         return None
 
 
-def imwrite_unicode(filepath: str, img: np.ndarray, params=None, image_format: str = None) -> bool:
+def imwrite_unicode(filepath: str, img: np.ndarray, params: Optional[List[int]] = None, image_format: Optional[str] = None) -> bool:
     """
     Write image with Unicode path support.
 

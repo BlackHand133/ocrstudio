@@ -16,6 +16,7 @@ Usage:
     config.save()
 """
 
+import copy
 import os
 import yaml
 import json
@@ -73,12 +74,12 @@ class ConfigManager:
         self.config_dir = os.path.join(root_dir, DIR_CONFIG)
         self.data_dir = os.path.join(root_dir, DIR_DATA)
 
-        # Config storage
-        self._profiles: Dict[str, Dict] = {}
+        # Config storage — fully-typed so mypy can check return values
+        self._profiles: Dict[str, Dict[str, Any]] = {}
         self._current_profile: str = "cpu"
-        self._app_config: Dict = {}
-        self._path_config: Dict = {}
-        self._recent_workspaces: List[Dict] = []
+        self._app_config: Dict[str, Any] = {}
+        self._path_config: Dict[str, str] = {}
+        self._recent_workspaces: List[Dict[str, Any]] = []
 
         # Load all configurations
         self._load_all()
@@ -91,20 +92,33 @@ class ConfigManager:
         self._load_recent_workspaces()
 
     def _load_profiles(self):
-        """Load OCR profile configurations."""
+        """Load OCR profile configurations from config.yaml."""
+        config_file = os.path.join(self.config_dir, "config.yaml")
+
+        # Primary: Load from unified config.yaml
+        if os.path.exists(config_file):
+            logger.info("Loading from unified config.yaml")
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config_data = yaml.safe_load(f) or {}
+                self._profiles = config_data.get('profiles', {})
+                self._current_profile = config_data.get('default_profile', 'cpu')
+
+                # Also load app settings from config.yaml
+                if 'app' in config_data:
+                    self._app_config.update(config_data.get('app', {}))
+                if 'logging' in config_data:
+                    self._app_config['logging'] = config_data.get('logging', {})
+                if 'paths' in config_data:
+                    # Update paths from config.yaml
+                    for key, value in config_data.get('paths', {}).items():
+                        self._path_config[key] = os.path.join(self.root_dir, value)
+
+                if self._profiles:
+                    logger.info(f"Loaded {len(self._profiles)} profiles from config.yaml")
+                    return
+
+        # Fallback: Load from separate profile files
         profiles_dir = os.path.join(self.config_dir, "profiles")
-
-        # Fallback to old config.yaml if profiles don't exist
-        old_config = os.path.join(self.config_dir, "config.yaml")
-        if os.path.exists(old_config) and not os.path.exists(profiles_dir):
-            logger.info("Loading old config.yaml format")
-            with open(old_config, 'r', encoding='utf-8') as f:
-                old_data = yaml.safe_load(f)
-                self._profiles = old_data.get('profiles', {})
-                self._current_profile = old_data.get('default_profile', 'cpu')
-                return
-
-        # Load new profile-based configs
         if os.path.exists(profiles_dir):
             for profile_file in os.listdir(profiles_dir):
                 if profile_file.endswith('.yaml'):
@@ -123,18 +137,24 @@ class ConfigManager:
 
     def _load_path_config(self):
         """Load path configurations."""
-        path_config_file = os.path.join(self.config_dir, "paths.yaml")
+        # Paths are now loaded from config.yaml in _load_profiles()
+        # This method provides fallback defaults if not already loaded
 
-        if os.path.exists(path_config_file):
-            with open(path_config_file, 'r', encoding='utf-8') as f:
-                self._path_config = yaml.safe_load(f) or {}
-        else:
-            logger.warning("paths.yaml not found, using defaults")
+        if not self._path_config:
+            logger.debug("Using default path configuration")
             self._path_config = self._get_default_paths()
 
     def _load_app_config(self):
-        """Load application configuration."""
-        app_config_file = os.path.join(self.root_dir, "app_config.json")
+        """Load application configuration from data/app_config.json."""
+        os.makedirs(self.data_dir, exist_ok=True)
+        app_config_file = os.path.join(self.data_dir, "app_config.json")
+
+        # Migrate from legacy root-level location if needed
+        legacy_file = os.path.join(self.root_dir, "app_config.json")
+        if not os.path.exists(app_config_file) and os.path.exists(legacy_file):
+            import shutil
+            shutil.move(legacy_file, app_config_file)
+            logger.info(f"Migrated app_config.json → data/app_config.json")
 
         if os.path.exists(app_config_file):
             with open(app_config_file, 'r', encoding='utf-8') as f:
@@ -144,8 +164,16 @@ class ConfigManager:
             self._app_config = self._get_default_app_config()
 
     def _load_recent_workspaces(self):
-        """Load recent workspaces."""
-        recent_file = os.path.join(self.root_dir, "recent_workspaces.json")
+        """Load recent workspaces from data/recent_workspaces.json."""
+        os.makedirs(self.data_dir, exist_ok=True)
+        recent_file = os.path.join(self.data_dir, "recent_workspaces.json")
+
+        # Migrate from legacy root-level location if needed
+        legacy_file = os.path.join(self.root_dir, "recent_workspaces.json")
+        if not os.path.exists(recent_file) and os.path.exists(legacy_file):
+            import shutil
+            shutil.move(legacy_file, recent_file)
+            logger.info(f"Migrated recent_workspaces.json → data/recent_workspaces.json")
 
         if os.path.exists(recent_file):
             with open(recent_file, 'r', encoding='utf-8') as f:
@@ -330,7 +358,8 @@ class ConfigManager:
             Dict of PaddleOCR parameters
         """
         profile = self.get_profile_config(profile_name)
-        return profile.get('paddleocr', {})
+        result: Dict[str, Any] = profile.get('paddleocr', {})
+        return result
 
     # ===== Path Management =====
 
@@ -373,28 +402,222 @@ class ConfigManager:
     # ===== Save Operations =====
 
     def save_app_config(self):
-        """Save application configuration."""
-        app_config_file = os.path.join(self.root_dir, "app_config.json")
+        """Save application configuration to data/app_config.json."""
+        os.makedirs(self.data_dir, exist_ok=True)
+        app_config_file = os.path.join(self.data_dir, "app_config.json")
         with open(app_config_file, 'w', encoding='utf-8') as f:
             json.dump(self._app_config, f, indent=2, ensure_ascii=False)
-        logger.debug("Saved app_config.json")
+        logger.debug("Saved data/app_config.json")
 
     def save_recent_workspaces(self):
-        """Save recent workspaces."""
-        recent_file = os.path.join(self.root_dir, "recent_workspaces.json")
+        """Save recent workspaces to data/recent_workspaces.json."""
+        os.makedirs(self.data_dir, exist_ok=True)
+        recent_file = os.path.join(self.data_dir, "recent_workspaces.json")
         data = {
             'version': WORKSPACE_VERSION,
             'workspaces': self._recent_workspaces
         }
         with open(recent_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
-        logger.debug("Saved recent_workspaces.json")
+        logger.debug("Saved data/recent_workspaces.json")
 
     def save_all(self):
         """Save all configurations."""
         self.save_app_config()
         self.save_recent_workspaces()
         logger.info("Saved all configurations")
+
+    def save(self):
+        """
+        Save the full config.yaml (profiles + default_profile + app) and
+        all JSON data files.  Drop-in replacement for ConfigLoader.save().
+        """
+        config_file = self.config_file
+        os.makedirs(os.path.dirname(config_file), exist_ok=True)
+
+        # Read existing config first so we preserve unknown top-level keys
+        if os.path.exists(config_file):
+            with open(config_file, "r", encoding="utf-8") as f:
+                full_config = yaml.safe_load(f) or {}
+        else:
+            full_config = {}
+
+        full_config["default_profile"] = self._current_profile
+        full_config["profiles"] = self._profiles
+        if self._app_config:
+            # Keep app settings inside config.yaml under the 'app' key
+            full_config["app"] = {
+                k: v for k, v in self._app_config.items()
+                if k not in ("version", "current_workspace", "window")
+            }
+
+        with open(config_file, "w", encoding="utf-8") as f:
+            yaml.safe_dump(full_config, f, allow_unicode=True, default_flow_style=False)
+
+        self.save_all()
+        logger.info(f"Config saved to {config_file}")
+
+    # ===== Legacy / compat API (drop-in replacements for ConfigLoader) =====
+
+    @property
+    def config_file(self) -> str:
+        """Absolute path to config/config.yaml."""
+        return os.path.join(self.config_dir, "config.yaml")
+
+    def get_default_profile_name(self) -> str:
+        """Return the current (default) profile name. Compat with ConfigLoader."""
+        return self._current_profile
+
+    def set_default_profile(self, profile_name: str):
+        """Set default profile and persist to config.yaml. Compat with ConfigLoader."""
+        self.set_current_profile(profile_name)
+
+    def get_profile(self, profile_name: Optional[str] = None) -> Dict:
+        """Return profile config dict. Compat with ConfigLoader.get_profile()."""
+        return self.get_profile_config(profile_name)
+
+    def get_app_settings(self) -> Dict:
+        """
+        Return application settings dict.
+        Compat with ConfigLoader.get_app_settings().
+        """
+        return self._app_config
+
+    def update_profile_setting(self, profile_name: str, key_path: str, value: Any):
+        """
+        Update a nested key inside a profile using dot-path notation.
+
+        Args:
+            profile_name: e.g. 'cpu' or 'gpu'
+            key_path:     dot-separated path, e.g. 'paddleocr.det_db_box_thresh'
+            value:        new value
+
+        Raises:
+            ValueError: if profile_name is not found
+        """
+        if profile_name not in self._profiles:
+            raise ValueError(f"Profile '{profile_name}' not found")
+        keys = key_path.split(".")
+        target = self._profiles[profile_name]
+        for key in keys[:-1]:
+            if key not in target:
+                target[key] = {}
+            target = target[key]
+        target[keys[-1]] = value
+        logger.info(f"Updated {profile_name}.{key_path} = {value!r}")
+
+    def snapshot(self) -> Dict:
+        """
+        Return a deep-copy snapshot of mutable config state.
+        Pass to restore_snapshot() to implement Cancel in settings dialogs.
+        """
+        return {
+            "current_profile": self._current_profile,
+            "profiles":        copy.deepcopy(self._profiles),
+            "app_config":      copy.deepcopy(self._app_config),
+        }
+
+    def restore_snapshot(self, snap: Dict):
+        """Restore config from a snapshot produced by snapshot()."""
+        self._current_profile = snap["current_profile"]
+        self._profiles        = snap["profiles"]
+        self._app_config      = snap["app_config"]
+        logger.info("Config state restored from snapshot")
+
+    # ===== Validation =====
+
+    def validate(self) -> List[str]:
+        """Check the loaded configuration for common mistakes and log warnings.
+
+        Called automatically at startup.  Returns a list of warning strings so
+        callers can decide whether to surface them in the UI.
+
+        Checks performed:
+        - ``default_profile`` exists in ``profiles``
+        - Every profile has a ``paddleocr`` section with the required keys
+        - Numeric thresholds are within sensible ranges
+        - Custom model paths (if set) point to directories that actually exist
+
+        Returns:
+            List of warning message strings.  Empty list means clean config.
+        """
+        warnings: List[str] = []
+
+        # 1. Active profile exists
+        if self._current_profile not in self._profiles:
+            msg = (
+                f"default_profile '{self._current_profile}' is not defined in profiles. "
+                f"Available: {list(self._profiles.keys())}"
+            )
+            logger.warning("Config validation: %s", msg)
+            warnings.append(msg)
+
+        # 2. Per-profile checks
+        _REQUIRED_PADDLE_KEYS = ("lang", "det_db_box_thresh", "det_db_unclip_ratio")
+        _FLOAT_RANGES: Dict[str, tuple] = {
+            "det_db_box_thresh":   (0.0, 1.0),
+            "det_db_unclip_ratio": (1.0, 5.0),
+        }
+
+        for profile_name, profile in self._profiles.items():
+            ocr = profile.get("paddleocr", {})
+
+            if not ocr:
+                msg = f"Profile '{profile_name}' is missing the 'paddleocr' section."
+                logger.warning("Config validation: %s", msg)
+                warnings.append(msg)
+                continue
+
+            # Required keys
+            for key in _REQUIRED_PADDLE_KEYS:
+                if key not in ocr:
+                    msg = f"Profile '{profile_name}': missing paddleocr.{key}"
+                    logger.warning("Config validation: %s", msg)
+                    warnings.append(msg)
+
+            # Numeric ranges
+            for key, (lo, hi) in _FLOAT_RANGES.items():
+                if key in ocr:
+                    try:
+                        val = float(ocr[key])
+                        if not (lo <= val <= hi):
+                            msg = (
+                                f"Profile '{profile_name}': paddleocr.{key} = {val} "
+                                f"is outside expected range [{lo}, {hi}]"
+                            )
+                            logger.warning("Config validation: %s", msg)
+                            warnings.append(msg)
+                    except (TypeError, ValueError):
+                        msg = (
+                            f"Profile '{profile_name}': paddleocr.{key} = {ocr[key]!r} "
+                            f"is not a valid number"
+                        )
+                        logger.warning("Config validation: %s", msg)
+                        warnings.append(msg)
+
+            # Custom model path existence
+            for path_key in (
+                "text_detection_model_dir",
+                "text_recognition_model_dir",
+                "doc_orientation_classify_model_dir",
+            ):
+                if path_key in ocr and ocr[path_key]:
+                    raw = ocr[path_key]
+                    full = raw if os.path.isabs(raw) else os.path.join(self.root_dir, raw)
+                    if not os.path.exists(full):
+                        msg = (
+                            f"Profile '{profile_name}': {path_key} = '{raw}' "
+                            f"does not exist on disk"
+                        )
+                        logger.warning("Config validation: %s", msg)
+                        warnings.append(msg)
+
+        if not warnings:
+            logger.info("Config validation passed — no issues found")
+        else:
+            logger.warning("Config validation found %d issue(s)", len(warnings))
+
+        return warnings
 
 
 # ===== Convenience Functions =====

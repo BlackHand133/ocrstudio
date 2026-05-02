@@ -16,6 +16,7 @@ from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
 
 from modules.export.base import BaseExporter
+from modules.export.utils import ExportValidationError
 from modules.export import utils as export_utils
 from modules.utils import imread_unicode, imwrite_unicode, sanitize_filename
 from modules.augmentation import AugmentationPipeline
@@ -80,11 +81,10 @@ class RecognitionExporter(BaseExporter):
             crops = self._collect_crops()
 
             if not crops:
-                QtWidgets.QMessageBox.information(
-                    self.main_window, "Export Rec",
-                    "No valid annotations for export\n(Mask items excluded)"
+                raise ExportValidationError(
+                    "No valid annotations found for recognition export.\n"
+                    "Make sure at least one image has non-mask annotations with transcriptions."
                 )
-                return False
 
             # Create augmentation pipeline
             pipeline = None

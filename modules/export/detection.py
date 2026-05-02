@@ -16,6 +16,7 @@ from PyQt5 import QtWidgets
 from PyQt5.QtCore import Qt
 
 from modules.export.base import BaseExporter
+from modules.export.utils import ExportValidationError
 from modules.export import utils as export_utils
 from modules.utils import imread_unicode, imwrite_unicode, sanitize_annotations, sanitize_filename
 from modules.augmentation import AugmentationPipeline
@@ -57,11 +58,10 @@ class DetectionExporter(BaseExporter):
             ]
 
             if not keys:
-                QtWidgets.QMessageBox.information(
-                    self.main_window, "No Annotations",
-                    "No annotations selected for export"
+                raise ExportValidationError(
+                    "No annotated images are selected for export.\n"
+                    "Please annotate at least one image and ensure it is checked in the list."
                 )
-                return False
 
             # Create augmentation pipeline
             pipeline = None
@@ -121,16 +121,23 @@ class DetectionExporter(BaseExporter):
         # Progress dialog
         total_keys = sum(len(v) for v in split_result.values())
         progress = QtWidgets.QProgressDialog(
-            "Processing images...", "Cancel", 0, total_keys, self.main_window
+            "Exporting Detection Dataset...", "Cancel", 0, total_keys, self.main_window
         )
+        progress.setWindowTitle("Export Detection Dataset")
         progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
 
         processed = 0
         for split_name, split_keys in split_result.items():
             for key in split_keys:
                 progress.setValue(processed)
+                progress.setLabelText(f"Processing: {key}\n({processed+1}/{total_keys}) [{split_name}]")
+                QtWidgets.QApplication.processEvents()
+
                 if progress.wasCanceled():
-                    break
+                    logger.info("Detection export cancelled by user")
+                    progress.close()
+                    return False
 
                 img_path = path_map[key]
 
@@ -267,13 +274,33 @@ class DetectionExporter(BaseExporter):
             aug_info += f"\n  • Mode: {aug_config['mode']}"
             aug_info += f"\n  • Applied to: {', '.join(target_splits)}"
 
-        QtWidgets.QMessageBox.information(
-            self.main_window, "Save Detection Dataset",
-            f"✅ Detection Dataset saved successfully!\n\n"
-            f"📁 Location: {dataset_dir}\n\n"
+        # Show completion message with option to open folder
+        msg_box = QtWidgets.QMessageBox(self.main_window)
+        msg_box.setWindowTitle("Save Detection Dataset")
+        msg_box.setText("✅ Detection Dataset saved successfully!")
+        msg_box.setInformativeText(
+            f"📁 Location:\n{dataset_dir}\n\n"
             f"📊 Statistics:\n{stats}\n  • Total: {total_images} images{aug_info}\n\n"
             f"ℹ️ Notes: Mask items are hidden in exported images"
         )
+        msg_box.setIcon(QtWidgets.QMessageBox.Information)
+
+        # Add buttons
+        btn_open = msg_box.addButton("Open Folder", QtWidgets.QMessageBox.ActionRole)
+        msg_box.addButton(QtWidgets.QMessageBox.Ok)
+
+        msg_box.exec_()
+
+        # Check if user clicked Open Folder
+        if msg_box.clickedButton() == btn_open:
+            import subprocess
+            import sys
+            if sys.platform == 'win32':
+                os.startfile(dataset_dir)
+            elif sys.platform == 'darwin':
+                subprocess.run(['open', dataset_dir])
+            else:
+                subprocess.run(['xdg-open', dataset_dir])
 
         logger.info(f"Exported detection dataset to {dataset_dir}")
         return True

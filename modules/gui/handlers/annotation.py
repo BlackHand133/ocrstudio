@@ -1,187 +1,221 @@
-# modules/gui/window_handler/annotation_handler.py
+# modules/gui/handlers/annotation.py
 
 import logging
+
 from PyQt5 import QtWidgets, QtGui
+
 from modules.gui.box_item import BoxItem
 from modules.gui.polygon_item import PolygonItem
 from modules.gui.mask_item import MaskQuadItem, MaskPolygonItem
 from modules.utils import sanitize_annotations
+from modules.core.undo_redo import (
+    UndoRedoManager,
+    AddAnnotationCommand,
+    DeleteAnnotationCommand,
+    BatchDeleteCommand,
+    ClearAnnotationsCommand,
+)
 
 logger = logging.getLogger("TextDetGUI")
 
 
-def is_valid_box(pts):
-    """Check if points are valid"""
+def is_valid_box(pts) -> bool:
+    """Return True if *pts* is a list of at least 4 valid [x, y] pairs."""
     if not (isinstance(pts, list) and len(pts) >= 4):
         return False
-    for p in pts:
-        if not (isinstance(p, (list, tuple)) and len(p) == 2):
-            return False
-    return True
+    return all(isinstance(p, (list, tuple)) and len(p) == 2 for p in pts)
 
 
 class AnnotationHandler:
     """
-    Manage annotations: add, delete, load, save
+    Manage annotations: add, delete, load, save.
+
+    img_key and annotations data come from self.state (AppState).
+    Qt scene / box_items are accessed through self.main_window.
     """
-    
-    def __init__(self, main_window):
-        """
-        Args:
-            main_window: reference to MainWindow instance
-        """
+
+    def __init__(self, state, services, main_window):
+        self.state       = state
+        self.services    = services
         self.main_window = main_window
-    
-    def add_box_item(self, pts, text, item_type=None, mask_color=None):
+
+    # ------------------------------------------------------------------ add
+
+    def add_box_item(
+        self,
+        pts: list,
+        text: str,
+        item_type: str = None,
+        mask_color=None,
+        use_undo: bool = True,
+    ) -> None:
         """
-        Add new annotation box (including mask items)
-        
+        Add an annotation box/polygon/mask to the scene.
+
         Args:
-            pts: list of points [[x1,y1], [x2,y2], ...]
-            text: text in annotation
-            item_type: 'Quad', 'Polygon', 'MaskQuad', 'MaskPolygon' (None = use value from annotation_type)
-            mask_color: mask color (for mask items only)
+            pts:        List of [x, y] coordinate pairs.
+            text:       Transcription text.
+            item_type:  'Quad' | 'Polygon' | 'MaskQuad' | 'MaskPolygon'.
+                        Defaults to state.annotation_type.
+            mask_color: QColor-compatible value for mask items.
+            use_undo:   If True, add the operation to the undo stack.
         """
         if item_type is None:
-            item_type = self.main_window.annotation_type
-        
-        # Check if it's a Mask Item
-        is_mask = 'Mask' in item_type or text == '###'
-        
-        # Create item based on type
+            item_type = self.state.annotation_type
+
+        is_mask = "Mask" in item_type or text == "###"
+
         if is_mask:
-            # Create MaskItem
-            if 'Quad' in item_type or (len(pts) == 4 and 'Polygon' not in item_type):
-                from PyQt5.QtGui import QColor
-                color = None
-                if mask_color:
-                    color = QColor(mask_color)
+            from PyQt5.QtGui import QColor
+            color = QColor(mask_color) if mask_color else None
+            if "Quad" in item_type or (len(pts) == 4 and "Polygon" not in item_type):
                 box = MaskQuadItem(pts, color)
             else:
-                from PyQt5.QtGui import QColor
-                color = None
-                if mask_color:
-                    color = QColor(mask_color)
                 box = MaskPolygonItem(pts, color)
         else:
-            # Create normal BoxItem or PolygonItem
-            if item_type == 'Quad' and len(pts) == 4:
+            if item_type == "Quad" and len(pts) == 4:
                 box = BoxItem(pts, text)
             else:
                 box = PolygonItem(pts, text)
-        
+
         box.setZValue(1)
         self.main_window.scene.addItem(box)
         self.main_window.box_items.append(box)
-        
-        logger.debug(f"Added {item_type} annotation: {text[:20]}")
-    
-    def clear_boxes(self):
-        """Clear all annotation boxes"""
+
+        img_key = self.state.img_key
+        if use_undo and img_key:
+            ann_data = {
+                "points":        pts,
+                "transcription": text,
+                "difficult":     False,
+                "shape":         item_type,
+            }
+            if mask_color:
+                ann_data["mask_color"] = mask_color
+
+            undo_manager = UndoRedoManager.instance()
+            cmd = AddAnnotationCommand(self.main_window, img_key, ann_data)
+            undo_manager.execute(cmd)
+        else:
+            self.save_current_annotation()
+
+        logger.debug(
+            f"Added {item_type} annotation: {repr(text[:20]) if text else '(empty)'}"
+        )
+
+    # ------------------------------------------------------------------ clear / save / load
+
+    def clear_boxes(self) -> None:
+        """Remove all annotation items from the scene and clear box_items."""
         for b in self.main_window.box_items:
             self.main_window.scene.removeItem(b)
         self.main_window.box_items.clear()
-    
-    def save_current_annotation(self):
-        """Save annotation of current image"""
-        if self.main_window.img_key:
+
+    def save_current_annotation(self) -> None:
+        """Serialize box_items to the annotation dict for the current image."""
+        key = self.state.img_key
+        if key:
             annotations = [b.to_dict() for b in self.main_window.box_items]
-            self.main_window.annotations[self.main_window.img_key] = sanitize_annotations(annotations)
-            self.update_list_icon(self.main_window.img_key)
-    
-    def load_annotation(self, key):
+            self.state.annotations[key] = sanitize_annotations(annotations)
+            self.update_list_icon(key)
+
+    def load_annotation(self, key: str) -> None:
         """
-        Load annotation of image (including mask items)
-        
+        Clear the canvas and load annotations for *key*.
+
         Args:
-            key: image key
+            key: Image key whose annotations should be displayed.
         """
-        ann = self.main_window.annotations.get(key, [])
+        ann = self.state.annotations.get(key, [])
         self.clear_boxes()
-        
+
         for it in ann:
-            if is_valid_box(it['points']):
-                pts = it['points']
-                text = it.get('transcription', '')
-                
-                # Use 'shape' field if available, otherwise use point count (backward compatibility)
-                item_type = it.get('shape', 'Quad' if len(pts) == 4 else 'Polygon')
-                
-                # Get mask_color if available (for mask items)
-                mask_color = it.get('mask_color', None)
-                
-                self.add_box_item(pts, text, item_type, mask_color)
-        
+            if is_valid_box(it["points"]):
+                pts       = it["points"]
+                text      = it.get("transcription", "")
+                item_type = it.get("shape", "Quad" if len(pts) == 4 else "Polygon")
+                mask_color = it.get("mask_color", None)
+                self.add_box_item(pts, text, item_type, mask_color, use_undo=False)
+
         self.main_window.view.update()
         logger.debug(f"Loaded {len(ann)} annotations for {key}")
-    
-    def update_list_icon(self, key):
-        """
-        Update checkmark icon and color in list widget
-        
-        Args:
-            key: image key
-        """
-        for i in range(self.main_window.list_widget.count()):
-            item = self.main_window.list_widget.item(i)
-            if item.text() == key:
-                # Update item appearance
-                if hasattr(self.main_window.image_handler, 'update_item_appearance'):
+
+    # ------------------------------------------------------------------ list icon
+
+    def update_list_icon(self, key: str) -> None:
+        """Refresh the icon / appearance of the list item for *key*."""
+        from PyQt5.QtCore import Qt
+        lw = self.main_window.list_widget
+        for i in range(lw.count()):
+            item = lw.item(i)
+            if item.data(Qt.UserRole) == key:
+                if hasattr(self.main_window, "image_handler"):
                     self.main_window.image_handler.update_item_appearance(item, key)
                 else:
-                    # Fallback if new method doesn't exist
-                    if self.main_window.annotations.get(key):
-                        item.setIcon(self.main_window.icon_marked)
-                    else:
-                        item.setIcon(QtGui.QIcon())
+                    icon = (
+                        self.main_window.icon_marked
+                        if self.state.annotations.get(key)
+                        else QtGui.QIcon()
+                    )
+                    item.setIcon(icon)
                 break
-    
-    def delete_selected(self):
-        """Delete selected annotations (including mask items)"""
+
+    # ------------------------------------------------------------------ delete
+
+    def delete_selected(self) -> None:
+        """Delete the selected annotations with undo/redo support."""
         sel = self.main_window.scene.selectedItems()
-        removed = False
-        
+        ann_types = (BoxItem, PolygonItem, MaskQuadItem, MaskPolygonItem)
+
+        indices = []
         for it in sel:
-            # Check for BoxItem, PolygonItem and MaskItems
-            if isinstance(it, (BoxItem, PolygonItem, MaskQuadItem, MaskPolygonItem)):
-                self.main_window.scene.removeItem(it)
-                self.main_window.box_items.remove(it)
-                removed = True
-        
-        if removed:
-            # Save changes
-            annotations = [b.to_dict() for b in self.main_window.box_items]
-            self.main_window.annotations[self.main_window.img_key] = sanitize_annotations(annotations)
-            self.update_list_icon(self.main_window.img_key)
-            self.main_window.workspace_handler.save_workspace()
-            
-            # Update table if in recog mode
-            if self.main_window.recog_mode:
-                self.main_window.table_handler.populate_table()
-            
-            logger.info(f"Deleted {len(sel)} annotations")
-        else:
+            if isinstance(it, ann_types):
+                try:
+                    indices.append(self.main_window.box_items.index(it))
+                except ValueError:
+                    continue
+
+        if not indices:
             QtWidgets.QMessageBox.information(
                 self.main_window, "Delete", "No box selected"
             )
-    
-    def apply_detections(self, items):
+            return
+
+        img_key = self.state.img_key
+        if not img_key:
+            return
+
+        undo_manager = UndoRedoManager.instance()
+        cmd = (
+            DeleteAnnotationCommand(self.main_window, img_key, indices[0])
+            if len(indices) == 1
+            else BatchDeleteCommand(self.main_window, img_key, indices)
+        )
+
+        if undo_manager.execute(cmd):
+            if self.state.recog_mode:
+                self.main_window.table_handler.populate_table()
+            logger.info(f"Deleted {len(indices)} annotations")
+        else:
+            QtWidgets.QMessageBox.critical(
+                self.main_window, "Error", "Failed to delete annotations"
+            )
+
+    # ------------------------------------------------------------------ apply detections
+
+    def apply_detections(self, items: list) -> None:
         """
-        Apply detection results
-        
+        Apply auto-detection results to the canvas.
+
         Args:
-            items: list of detection results
+            items: List of detection dicts from TextDetector.detect().
         """
         self.clear_boxes()
-        
         for it in items:
-            if not is_valid_box(it['points']):
-                continue
-            
-            pts = it['points']
-            # PaddleOCR detection results should always be Polygon to preserve original shape
-            item_type = 'Polygon'  # Always use Polygon for detection
-            self.add_box_item(pts, it['transcription'], item_type, mask_color=None)
-        
+            if is_valid_box(it["points"]):
+                self.add_box_item(
+                    it["points"], it["transcription"], "Polygon",
+                    mask_color=None, use_undo=False,
+                )
         self.main_window.view.update()
         logger.info(f"Applied {len(items)} detections")

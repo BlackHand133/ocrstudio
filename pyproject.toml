@@ -1,0 +1,138 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ocrstudio"
+version = "4.0.0"
+description = "OCR Annotation Tool with PaddleOCR integration for Thai and multilingual text detection and recognition"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+maintainers = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+keywords = [
+    "ocr",
+    "annotation",
+    "paddleocr",
+    "computer-vision",
+    "text-detection",
+    "text-recognition",
+    "thai-ocr",
+    "dataset-annotation"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Multimedia :: Graphics :: Editors",
+]
+
+dependencies = [
+    "PyQt5>=5.15.0",
+    "paddlepaddle>=2.4.0",
+    "paddleocr>=2.6.0",
+    "opencv-python>=4.5.0",
+    "Pillow>=9.0.0",
+    "numpy>=1.19.0",
+    "PyYAML>=5.4.0",
+    "Shapely>=1.8.0",
+    "imgaug>=0.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-qt>=4.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+    "mypy>=0.950",
+]
+gpu = [
+    "paddlepaddle-gpu>=2.4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/BlackHand133/ocrstudio"
+Documentation = "https://github.com/BlackHand133/ocrstudio#readme"
+Repository = "https://github.com/BlackHand133/ocrstudio"
+"Bug Tracker" = "https://github.com/BlackHand133/ocrstudio/issues"
+
+[project.scripts]
+ajan-ocr     = "main:main"
+ajan-ocr-cli = "modules.cli:main"
+
+[tool.setuptools]
+packages = ["modules"]
+
+[tool.setuptools.package-data]
+modules = ["**/*.yaml", "**/*.json"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+# Gradual strictness — only enabled on the fully-typed sub-packages
+[[tool.mypy.overrides]]
+module = ["modules.core.*", "modules.utils.*", "modules.config.*"]
+warn_return_any = true
+check_untyped_defs = true
+
+# Third-party stubs not installed — silence import noise
+[[tool.mypy.overrides]]
+module = ["cv2.*", "PyQt5.*", "paddleocr.*", "paddle.*"]
+ignore_missing_imports = true
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["modules"]
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+force_sort_within_sections = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+markers = [
+    "unit: pure unit tests — no Qt, no filesystem I/O",
+    "integration: tests that touch multiple modules together",
+    "gui: tests that require a QApplication (use pytest-qt)",
+    "slow: long-running tests excluded from fast CI runs",
+]

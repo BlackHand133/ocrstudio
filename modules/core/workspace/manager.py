@@ -7,9 +7,10 @@ storage and version management functionality.
 
 import os
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 
+import json
 from modules.constants import WORKSPACE_VERSION, DIR_WORKSPACES
 from modules.core.workspace.storage import WorkspaceStorage
 from modules.core.workspace.version import VersionManager
@@ -39,7 +40,112 @@ class WorkspaceManager:
         self.storage = WorkspaceStorage(self.workspaces_dir)
         self.version_manager = VersionManager(self.storage)
 
+        # Initialize app config (for legacy API compatibility)
+        # Files live in data/ subdirectory; migrate from project root if needed
+        self.data_dir = os.path.join(root_dir, "data")
+        os.makedirs(self.data_dir, exist_ok=True)
+        self.app_config_path = os.path.join(self.data_dir, "app_config.json")
+        self.recent_workspaces_path = os.path.join(self.data_dir, "recent_workspaces.json")
+        self._migrate_legacy_files(root_dir)
+        self.app_config = self._load_app_config()
+        self.recent_workspaces = self._load_recent_workspaces()
+
         logger.info(f"WorkspaceManager initialized with root: {root_dir}")
+
+    # ===== Migration helper =====
+
+    def _migrate_legacy_files(self, root_dir: str) -> None:
+        """Move app_config.json / recent_workspaces.json from project root → data/ if needed."""
+        for filename in ("app_config.json", "recent_workspaces.json"):
+            legacy = os.path.join(root_dir, filename)
+            new_path = os.path.join(self.data_dir, filename)
+            if os.path.exists(legacy) and not os.path.exists(new_path):
+                try:
+                    import shutil
+                    shutil.move(legacy, new_path)
+                    logger.info(f"Migrated {filename} → data/{filename}")
+                except OSError:
+                    logger.exception(f"Failed to migrate {filename}")
+
+    # ===== App Config Methods (Legacy API Compatibility) =====
+
+    def _load_app_config(self) -> Dict[str, Any]:
+        """Load app config"""
+        if os.path.exists(self.app_config_path):
+            try:
+                with open(self.app_config_path, 'r', encoding='utf-8') as f:
+                    data: Dict[str, Any] = json.load(f)
+                    return data
+            except (OSError, json.JSONDecodeError, ValueError) as e:
+                logger.exception("Failed to load app config")
+                pass
+
+        # Default config
+        return {
+            "version": WORKSPACE_VERSION,
+            "current_workspace": None,
+            "ui_state": {
+                "window_size": [1400, 900]
+            }
+        }
+
+    def save_app_config(self) -> bool:
+        """Save app config"""
+        try:
+            with open(self.app_config_path, 'w', encoding='utf-8') as f:
+                json.dump(self.app_config, f, ensure_ascii=False, indent=2)
+            return True
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to save app config")
+            return False
+
+    def _load_recent_workspaces(self) -> Dict[str, Any]:
+        """Load recent workspaces"""
+        if os.path.exists(self.recent_workspaces_path):
+            try:
+                with open(self.recent_workspaces_path, 'r', encoding='utf-8') as f:
+                    data: Dict[str, Any] = json.load(f)
+                    return data
+            except (OSError, json.JSONDecodeError, ValueError) as e:
+                logger.exception("Failed to load recent workspaces")
+                pass
+
+        return {
+            "version": WORKSPACE_VERSION,
+            "workspaces": []
+        }
+
+    def add_recent_workspace(self, workspace_id: str):
+        """Add workspace to recent list"""
+        workspaces = self.recent_workspaces.get("workspaces", [])
+
+        # Remove if already exists
+        workspaces = [w for w in workspaces if w.get("id") != workspace_id]
+
+        # Add at front
+        workspace_data = self.load_workspace(workspace_id)
+        if workspace_data:
+            workspaces.insert(0, {
+                "id": workspace_id,
+                "name": workspace_data["workspace"]["name"],
+                "last_opened": datetime.now().isoformat()
+            })
+
+        # Keep only 10 recent
+        workspaces = workspaces[:10]
+
+        self.recent_workspaces["workspaces"] = workspaces
+
+        try:
+            with open(self.recent_workspaces_path, 'w', encoding='utf-8') as f:
+                json.dump(self.recent_workspaces, f, ensure_ascii=False, indent=2)
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to save recent workspaces")
+
+    def get_recent_workspaces(self) -> List[Dict[str, Any]]:
+        """Get list of recent workspaces"""
+        result: List[Dict[str, Any]] = self.recent_workspaces.get("workspaces", [])
+        return result
 
     # ===== Workspace Creation =====
 
@@ -132,8 +238,8 @@ class WorkspaceManager:
             logger.info(f"Created workspace: {workspace_id} ({name})")
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to create workspace {workspace_id}: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to create workspace {workspace_id}")
             return False
 
     # ===== Workspace Loading =====
@@ -265,10 +371,12 @@ class WorkspaceManager:
                 workspace_info = workspace_data.get('workspace', {})
                 versions_info = workspace_data.get('versions', {})
 
+                source_info = workspace_data.get('source', {})
                 item = {
                     'id': workspace_id,
                     'name': workspace_info.get('name', workspace_id),
                     'description': workspace_info.get('description', ''),
+                    'source_folder': source_info.get('folder', ''),
                     'created_at': workspace_info.get('created_at', ''),
                     'modified_at': workspace_info.get('modified_at', ''),
                     'current_version': versions_info.get('current', 'v1'),
@@ -314,8 +422,8 @@ class WorkspaceManager:
             else:
                 return False, "Failed to save workspace data"
 
-        except Exception as e:
-            logger.error(f"Failed to rename workspace: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to rename workspace")
             return False, str(e)
 
     # ===== Workspace Repair =====
@@ -344,8 +452,8 @@ class WorkspaceManager:
 
             return True, "Workspace validated and repaired successfully"
 
-        except Exception as e:
-            logger.error(f"Failed to repair workspace: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to repair workspace")
             return False, str(e)
 
     # ===== Version Operations (Delegated to VersionManager) =====
@@ -384,7 +492,7 @@ class WorkspaceManager:
 
     # ===== Exports Operations =====
 
-    def get_exports(self, workspace_id: str) -> List[Dict]:
+    def get_exports(self, workspace_id: str) -> List[Dict[str, Any]]:
         """
         Get export history.
 
@@ -397,7 +505,8 @@ class WorkspaceManager:
         exports_data = self.storage.read_exports_file(workspace_id)
 
         if exports_data:
-            return exports_data.get('exports', [])
+            result: List[Dict[str, Any]] = exports_data.get('exports', [])
+            return result
 
         return []
 
@@ -432,6 +541,6 @@ class WorkspaceManager:
             # Save
             return self.storage.write_exports_file(workspace_id, exports_data)
 
-        except Exception as e:
-            logger.error(f"Failed to add export record: {e}")
+        except (OSError, json.JSONDecodeError, ValueError) as e:
+            logger.exception("Failed to add export record")
             return False

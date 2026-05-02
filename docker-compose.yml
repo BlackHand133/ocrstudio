@@ -1,0 +1,54 @@
+version: "3.9"
+
+# ============================================================
+# Ajan OCR — CPU docker-compose
+#
+# Usage:
+#   docker-compose up          # Start GUI (http://localhost:6080)
+#   docker-compose run cli python -m modules.cli --help
+# ============================================================
+
+services:
+  ajan:
+    build:
+      context: .
+      target: runtime-cpu
+    image: ajan-cpu:latest
+    container_name: ajan-ocr
+
+    environment:
+      MODE: gui                  # gui | headless
+      QT_QPA_PLATFORM: xcb
+
+    ports:
+      - "6080:6080"              # noVNC browser GUI
+
+    volumes:
+      - ./workspaces:/app/workspaces   # annotation workspaces (persistent)
+      - ./models:/app/models           # OCR model weights (persistent)
+      - ./config:/app/config           # editable config.yaml (persistent)
+      - ./data:/app/data               # app_config.json, recent_workspaces.json
+
+    restart: unless-stopped
+
+    # Increase shared memory for PaddlePaddle
+    shm_size: "2g"
+
+  # Convenience service for running CLI commands
+  cli:
+    build:
+      context: .
+      target: runtime-cpu
+    image: ajan-cpu:latest
+
+    environment:
+      MODE: headless
+
+    volumes:
+      - ./workspaces:/app/workspaces
+      - ./models:/app/models
+      - ./config:/app/config
+      - ./data:/app/data
+
+    entrypoint: []
+    command: python -m modules.cli --help

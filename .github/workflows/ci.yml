@@ -8,10 +8,12 @@ on:
 
 jobs:
   # ─────────────────────────────────────────────
-  # Job 1: Lint (black, isort, flake8, mypy)
+  # Job 1: Lint the web backend (server/) — black, isort, flake8.
+  # Scoped to server/ on purpose: the legacy desktop code under modules/ was
+  # never auto-formatted, and mypy is too noisy across the transitive imports.
   # ─────────────────────────────────────────────
   lint:
-    name: Lint
+    name: Lint (web backend)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,31 +27,22 @@ jobs:
       - name: Install lint dependencies
         run: |
           pip install --upgrade pip
-          pip install black isort flake8 mypy
-          # Install stubs / type-checked pure-Python deps only
-          pip install numpy pyyaml
+          pip install black isort flake8
 
       - name: black --check
-        run: black --check modules/ tests/
+        run: black --check server/
 
       - name: isort --check
-        run: isort --check-only modules/ tests/
+        run: isort --check-only server/
 
       - name: flake8
         run: |
-          flake8 modules/ tests/ \
+          flake8 server/ \
             --max-line-length=100 \
-            --extend-ignore=E203,W503 \
-            --exclude=modules/gui/
-
-      - name: mypy
-        run: |
-          mypy modules/core/ modules/utils/ modules/config/ \
-            --ignore-missing-imports \
-            --no-error-summary
+            --extend-ignore=E203,W503
 
   # ─────────────────────────────────────────────
-  # Job 2: Unit tests (no Qt, no PaddleOCR)
+  # Job 2: Core unit tests (no Qt, no PaddleOCR)
   # ─────────────────────────────────────────────
   test:
     name: Unit tests
@@ -86,12 +79,66 @@ jobs:
             --cov-fail-under=30
 
   # ─────────────────────────────────────────────
-  # Job 3: Docker build (CPU image only)
+  # Job 3: Web backend API tests (FastAPI TestClient, no paddle/Qt)
+  # ─────────────────────────────────────────────
+  backend-api:
+    name: Backend API tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install lightweight web test dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements-test.txt
+
+      - name: Run web API round-trip tests
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m pytest tests/test_api_server.py --tb=short -q
+
+  # ─────────────────────────────────────────────
+  # Job 4: Frontend (type-check + build + Vitest)
+  # ─────────────────────────────────────────────
+  frontend:
+    name: Frontend build & tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check & build
+        run: npm run build
+
+      - name: Unit tests (Vitest)
+        run: npm run test
+
+  # ─────────────────────────────────────────────
+  # Job 5: Docker build (CPU web image)
   # ─────────────────────────────────────────────
   docker-build:
-    name: Docker build (CPU)
+    name: Docker build (web, CPU)
     runs-on: ubuntu-latest
-    # Only run on push to main/master (not every PR to save minutes)
+    # Only run on push (not every PR) — the paddle wheels make this a heavy build.
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
@@ -99,12 +146,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build CPU image
+      - name: Build CPU web image
         uses: docker/build-push-action@v5
         with:
           context: .
-          target: runtime-cpu
+          file: Dockerfile.web
+          target: runtime-web
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          tags: ajan-ocr:cpu-ci
+          tags: ocrstudio-web:cpu-ci

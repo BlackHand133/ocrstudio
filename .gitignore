@@ -236,3 +236,16 @@ nul
 # Session/IDE state
 .claude/
 config/_backup/
+
+# ===== Web app (FastAPI + React) =====
+node_modules/
+frontend/dist/
+# built SPA, copied in at Docker build / local prod
+server/static/
+# tsc -b emits these next to the vite.config.ts source — don't track build output
+frontend/vite.config.js
+frontend/vite.config.d.ts
+
+# Keep the web-backend tests tracked despite the test_*.py rule above
+!tests/test_*.py
+!tests/**/test_*.py

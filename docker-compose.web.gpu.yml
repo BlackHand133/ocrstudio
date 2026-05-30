@@ -1,0 +1,22 @@
+# GPU override for the web image (CUDA 11.8 + PaddlePaddle-GPU).
+#
+#   docker compose -f docker-compose.web.yml -f docker-compose.web.gpu.yml up --build
+#   open http://localhost:8000
+#
+# Requires the NVIDIA Container Toolkit on the host.
+
+services:
+  web:
+    build:
+      target: runtime-web-gpu
+    image: ocrstudio-web-gpu:latest
+    environment:
+      OCR_PROFILE: gpu
+    shm_size: "2g"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

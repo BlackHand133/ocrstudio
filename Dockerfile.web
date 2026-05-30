@@ -1,0 +1,104 @@
+# ============================================================
+# OCR Studio — Web edition (single container)
+#
+#   Stage 1 (node)   builds the React SPA -> /frontend/dist
+#   Stage 2 (python) installs the backend and serves SPA + /api on :8000
+#
+# Build & run:
+#   docker compose -f docker-compose.web.yml up --build
+#   # open http://localhost:8000
+# ============================================================
+
+# ── 1. Frontend build ───────────────────────────────────────────────────────
+FROM node:20-slim AS frontend
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+
+# ── 2. Python web runtime (CPU) ──────────────────────────────────────────────
+FROM python:3.10-slim AS runtime-web
+WORKDIR /app
+
+# Runtime libs: OpenCV needs libgl/glib; PaddlePaddle needs libgomp (OpenMP).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgl1 \
+        libglib2.0-0 \
+        libgomp1 \
+        fonts-noto \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-web.txt requirements-server.txt ./
+RUN pip install --no-cache-dir -r requirements-web.txt \
+ && pip install --no-cache-dir -r requirements-server.txt
+
+# Application: Qt-free core + the FastAPI server + YAML config.
+COPY modules/ ./modules/
+COPY server/ ./server/
+COPY config/ ./config/
+
+# Built SPA -> served by FastAPI (server/main.py mounts ./static when present).
+COPY --from=frontend /frontend/dist ./server/static
+
+# Runtime dirs (overlaid by volume mounts in compose).
+RUN mkdir -p /app/workspaces /app/models /app/data /app/output_det /app/output_rec
+
+EXPOSE 8000
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+VOLUME ["/app/workspaces", "/app/models", "/app/data"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)" || exit 1
+
+CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+
+# ── 3. Python web runtime (GPU / CUDA 11.8) ──────────────────────────────────
+# Build with: docker compose -f docker-compose.web.yml -f docker-compose.web.gpu.yml up --build
+FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04 AS runtime-web-gpu
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3.10 \
+        python3-pip \
+        libgl1 \
+        libglib2.0-0 \
+        libgomp1 \
+        fonts-noto \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.10 /usr/local/bin/python \
+    && ln -sf /usr/bin/pip3 /usr/local/bin/pip
+
+COPY requirements-server.txt ./
+# GPU PaddlePaddle 3.x (CUDA 11.8) + the same runtime deps as the CPU image.
+RUN pip install --no-cache-dir paddlepaddle-gpu==3.1.1 \
+        -i https://www.paddlepaddle.org.cn/packages/stable/cu118/ \
+ && pip install --no-cache-dir \
+        "paddleocr>=3.0.0" \
+        "opencv-python-headless>=4.8.0" \
+        "Pillow>=10.0.0" \
+        "PyYAML>=6.0.0" \
+ && pip install --no-cache-dir -r requirements-server.txt
+
+COPY modules/ ./modules/
+COPY server/ ./server/
+COPY config/ ./config/
+COPY --from=frontend /frontend/dist ./server/static
+
+RUN mkdir -p /app/workspaces /app/models /app/data /app/output_det /app/output_rec
+
+EXPOSE 8000
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    OCR_PROFILE=gpu
+
+VOLUME ["/app/workspaces", "/app/models", "/app/data"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)" || exit 1
+
+CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]

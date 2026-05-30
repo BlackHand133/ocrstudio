@@ -1,0 +1,331 @@
+import { create } from 'zustand';
+
+export type UILang = 'en' | 'th';
+
+type Dict = Record<string, string>;
+
+const en: Dict = {
+  // header
+  'hdr.annotated': '{a}/{b} annotated',
+  'hdr.export': 'Export',
+  'hdr.saved': 'Saved',
+  'hdr.saveDirty': 'Save *',
+  'hdr.undo': 'Undo (Ctrl+Z)',
+  'hdr.redo': 'Redo (Ctrl+Y)',
+  'hdr.settings': 'OCR settings',
+  'hdr.switch': 'Switch workspace',
+  'hdr.theme': 'Toggle light / dark',
+  'common.saved': 'Saved',
+  'common.saveFailed': 'Save failed',
+  // image list
+  'list.search': 'Search filename…',
+  'list.all': 'All',
+  'list.labeled': 'Labeled',
+  'list.empty': 'Empty',
+  'list.forExport': '{n}/{m} for export',
+  'list.selAll': 'All',
+  'list.selNone': 'None',
+  'list.missing': '{n} image(s) missing — relink',
+  'list.noImages': 'No images.',
+  // annotation panel
+  'panel.runOcr': 'Run OCR',
+  'panel.ocrThis': 'This image',
+  'panel.ocrEmpty': 'Detect empty images',
+  'panel.ocrAll': 'Re-detect all images',
+  'tool.select': 'Select',
+  'tool.box': 'Box',
+  'tool.polygon': 'Polygon',
+  'tool.mask': 'Mask',
+  'panel.censorColor': 'Censor color',
+  'panel.color': 'Color',
+  'panel.annotations': 'Annotations',
+  'panel.censor': 'CENSOR',
+  'panel.hiddenOnExport': 'Hidden on export ({mode})',
+  'panel.difficult': 'Difficult',
+  'panel.transcriptionPh': 'transcription…',
+  'panel.noAnns': 'No annotations yet. Draw a box or run OCR.',
+  'panel.selectImage': 'Select an image to annotate.',
+  'panel.sticky': 'Keep tool active after drawing (sticky)',
+  'panel.sortOrder': 'Sort boxes by reading order (top→bottom, left→right)',
+  'panel.copyPrev': 'Copy boxes from the previous image',
+  'panel.toCensor': 'Convert to censor / mask',
+  'panel.toText': 'Convert to text box',
+  'panel.selectedN': '{n} selected',
+  'panel.setDifficult': 'Mark difficult',
+  'panel.clearDifficult': 'Unmark difficult',
+  'panel.deleteSel': 'Delete selected',
+  'panel.noText': 'no text',
+  'copy.noPrev': 'No previous image',
+  'copy.prevEmpty': 'Previous image has no boxes',
+  'copy.copied': 'Copied {n} box(es) from {k}',
+  'mode.solid': 'Solid',
+  'mode.blur': 'Blur',
+  'mode.pixelate': 'Pixelate',
+  // canvas
+  'canvas.rotateLeft': 'Rotate left',
+  'canvas.rotateRight': 'Rotate right',
+  'canvas.zoomIn': 'Zoom in',
+  'canvas.zoomOut': 'Zoom out',
+  'canvas.fit': 'Fit to screen',
+  'canvas.previewCensor': 'Preview censor (masks solid)',
+  'canvas.selectStart': 'Select an image from the list to start.',
+  'canvas.status': '{w}×{h}px · {r}° · {n} boxes',
+  // workspace picker
+  'wp.subtitle': 'Create a workspace or open an existing one to start annotating.',
+  'wp.newWs': 'New workspace',
+  'wp.name': 'Name',
+  'wp.drop': 'Drop images here or click to browse',
+  'wp.selectedN': '{n} image(s) selected',
+  'wp.formats': 'PNG, JPG, BMP, TIFF, WebP…',
+  'wp.create': 'Create workspace',
+  'wp.existing': 'Existing workspaces',
+  'wp.none': 'No workspaces yet.',
+  'wp.enterName': 'Please enter a workspace name',
+  'wp.createFailed': 'Create failed',
+  // export modal
+  'exp.title': 'Export dataset',
+  'exp.dsType': 'Dataset type',
+  'exp.detection': 'Detection (boxes)',
+  'exp.recognition': 'Recognition (crops)',
+  'exp.split': 'Split (%)',
+  'exp.train': 'Train',
+  'exp.valid': 'Valid',
+  'exp.test': 'Test',
+  'exp.splitSum': 'Splits sum to {s}%. The remainder goes to the last non-zero split.',
+  'exp.imageFormat': 'Image format',
+  'exp.cropMethod': 'Crop method',
+  'exp.bbox': 'BBox',
+  'exp.rotated': 'Rotated',
+  'exp.augment': 'Augment training split',
+  'exp.augSeparate': 'Separate images',
+  'exp.augCombined': 'Combined',
+  'exp.augNote': 'Augmentations are added to the train split only.',
+  'exp.autoOrient': 'Auto-orient crops upright',
+  'exp.export': 'Export',
+  'confirm.delVersion': 'Delete version "{n}"? This cannot be undone.',
+  'confirm.delWs': 'Delete workspace "{n}" and all its annotations? This cannot be undone.',
+  'wp.delete': 'Delete workspace',
+  'exp.exported': 'Exported {n} item(s)',
+  'exp.exportedTitle': 'Exported {n} {kind} item(s)',
+  'exp.savedTo': 'Saved to {dir}',
+  'exp.download': 'Download .zip',
+  'exp.failed': 'Export failed',
+  // settings modal
+  'set.title': 'OCR settings',
+  'set.profile': 'Profile',
+  'set.modelSource': 'Model source',
+  'set.official': 'Official (PaddleOCR)',
+  'set.custom': 'Custom model',
+  'set.language': 'Language',
+  'set.version': 'PP-OCR version',
+  'set.versionPh': 'default (latest)',
+  'set.detDir': 'Detection model directory',
+  'set.recDir': 'Recognition model directory',
+  'set.recLang': 'Recognition language (char dict)',
+  'set.customNote':
+    'Each folder must be a PaddleOCR 3.x inference model (inference.json + inference.pdiparams + inference.yml). Models from 2.x must be re-exported. Mount them under ./models on the host.',
+  'set.detTuning': 'Detection tuning',
+  'set.boxThresh': 'Detection box threshold',
+  'set.unclip': 'Detection unclip ratio',
+  'set.textline': 'Text-line orientation classifier',
+  'set.save': 'Save',
+  'set.applyNote': 'Applies to the selected profile and reloads the OCR engine on the next detection.',
+  'set.savedToast': 'Settings saved — OCR reloads on next run',
+  // version menu
+  'ver.versions': 'Versions',
+  'ver.new': 'New version…',
+  'ver.newTitle': 'New version',
+  'ver.newDesc': 'Creates a copy of the current version ({v}) and switches to it.',
+  'ver.name': 'Version name',
+  'ver.create': 'Create',
+  'ver.created': 'Created version {n}',
+  'ver.deleted': 'Deleted {n}',
+  // relink modal
+  'relink.title': 'Relink images',
+  'relink.desc':
+    '{n} annotated image(s) have no matching file in this workspace. Upload the original images (filenames must match the annotation keys) to reconnect them.',
+  'relink.upload': 'Upload & relink',
+};
+
+const th: Dict = {
+  'hdr.annotated': 'ทำแล้ว {a}/{b}',
+  'hdr.export': 'ส่งออก',
+  'hdr.saved': 'บันทึกแล้ว',
+  'hdr.saveDirty': 'บันทึก *',
+  'hdr.undo': 'ย้อนกลับ (Ctrl+Z)',
+  'hdr.redo': 'ทำซ้ำ (Ctrl+Y)',
+  'hdr.settings': 'ตั้งค่า OCR',
+  'hdr.switch': 'สลับ workspace',
+  'hdr.theme': 'สลับโหมดสว่าง / มืด',
+  'common.saved': 'บันทึกแล้ว',
+  'common.saveFailed': 'บันทึกไม่สำเร็จ',
+  'list.search': 'ค้นหาชื่อไฟล์…',
+  'list.all': 'ทั้งหมด',
+  'list.labeled': 'มีป้าย',
+  'list.empty': 'ว่าง',
+  'list.forExport': 'จะส่งออก {n}/{m}',
+  'list.selAll': 'เลือกหมด',
+  'list.selNone': 'ไม่เลือก',
+  'list.missing': 'ขาดรูป {n} ไฟล์ — เชื่อมใหม่',
+  'list.noImages': 'ไม่มีรูป',
+  'panel.runOcr': 'รัน OCR',
+  'panel.ocrThis': 'รูปนี้',
+  'panel.ocrEmpty': 'ตรวจรูปที่ยังว่าง',
+  'panel.ocrAll': 'ตรวจใหม่ทุกรูป',
+  'tool.select': 'เลือก',
+  'tool.box': 'กล่อง',
+  'tool.polygon': 'หลายเหลี่ยม',
+  'tool.mask': 'เซ็นเซอร์',
+  'panel.censorColor': 'สีเซ็นเซอร์',
+  'panel.color': 'สี',
+  'panel.annotations': 'รายการ',
+  'panel.censor': 'เซ็นเซอร์',
+  'panel.hiddenOnExport': 'ซ่อนตอนส่งออก ({mode})',
+  'panel.difficult': 'ยาก',
+  'panel.transcriptionPh': 'พิมพ์ข้อความ…',
+  'panel.noAnns': 'ยังไม่มี — วาดกล่องหรือรัน OCR',
+  'panel.selectImage': 'เลือกรูปเพื่อเริ่มทำ',
+  'panel.sticky': 'ล็อกเครื่องมือให้วาดต่อเนื่อง (sticky)',
+  'panel.sortOrder': 'เรียงกล่องตามลำดับการอ่าน (บน→ล่าง, ซ้าย→ขวา)',
+  'panel.copyPrev': 'คัดลอกกล่องจากรูปก่อนหน้า',
+  'panel.toCensor': 'แปลงเป็นเซ็นเซอร์',
+  'panel.toText': 'แปลงเป็นกล่องข้อความ',
+  'panel.selectedN': 'เลือก {n}',
+  'panel.setDifficult': 'ตั้งว่ายาก',
+  'panel.clearDifficult': 'ยกเลิกยาก',
+  'panel.deleteSel': 'ลบที่เลือก',
+  'panel.noText': 'ยังไม่พิมพ์',
+  'copy.noPrev': 'ไม่มีรูปก่อนหน้า',
+  'copy.prevEmpty': 'รูปก่อนหน้าไม่มีกล่อง',
+  'copy.copied': 'คัดลอก {n} กล่องจาก {k}',
+  'mode.solid': 'ทึบ',
+  'mode.blur': 'เบลอ',
+  'mode.pixelate': 'พิกเซล',
+  'canvas.rotateLeft': 'หมุนซ้าย',
+  'canvas.rotateRight': 'หมุนขวา',
+  'canvas.zoomIn': 'ซูมเข้า',
+  'canvas.zoomOut': 'ซูมออก',
+  'canvas.fit': 'พอดีจอ',
+  'canvas.previewCensor': 'พรีวิวเซ็นเซอร์ (ทึบ)',
+  'canvas.selectStart': 'เลือกรูปจากรายการเพื่อเริ่ม',
+  'canvas.status': '{w}×{h}px · {r}° · {n} กล่อง',
+  'wp.subtitle': 'สร้าง workspace ใหม่ หรือเปิดอันที่มีอยู่เพื่อเริ่มทำ',
+  'wp.newWs': 'สร้าง workspace ใหม่',
+  'wp.name': 'ชื่อ',
+  'wp.drop': 'ลากรูปมาวาง หรือคลิกเลือก',
+  'wp.selectedN': 'เลือกแล้ว {n} รูป',
+  'wp.formats': 'PNG, JPG, BMP, TIFF, WebP…',
+  'wp.create': 'สร้าง workspace',
+  'wp.existing': 'workspace ที่มีอยู่',
+  'wp.none': 'ยังไม่มี workspace',
+  'wp.enterName': 'กรุณาใส่ชื่อ workspace',
+  'wp.createFailed': 'สร้างไม่สำเร็จ',
+  'exp.title': 'ส่งออก dataset',
+  'exp.dsType': 'ชนิด dataset',
+  'exp.detection': 'Detection (กล่อง)',
+  'exp.recognition': 'Recognition (รูปตัด)',
+  'exp.split': 'แบ่งสัดส่วน (%)',
+  'exp.train': 'Train',
+  'exp.valid': 'Valid',
+  'exp.test': 'Test',
+  'exp.splitSum': 'รวมกัน {s}% ส่วนที่เหลือจะไปอยู่ split สุดท้าย',
+  'exp.imageFormat': 'ฟอร์แมตรูป',
+  'exp.cropMethod': 'วิธีตัดรูป',
+  'exp.bbox': 'กรอบ',
+  'exp.rotated': 'หมุนตรง',
+  'exp.augment': 'เพิ่มข้อมูล (augment) ชุด train',
+  'exp.augSeparate': 'แยกรูป',
+  'exp.augCombined': 'รวมเป็นรูปเดียว',
+  'exp.augNote': 'augment จะใส่เฉพาะชุด train เท่านั้น',
+  'exp.autoOrient': 'หมุน crop ให้ตั้งตรงอัตโนมัติ',
+  'exp.export': 'ส่งออก',
+  'confirm.delVersion': 'ลบเวอร์ชัน "{n}"? ย้อนกลับไม่ได้',
+  'confirm.delWs': 'ลบ workspace "{n}" และ annotation ทั้งหมด? ย้อนกลับไม่ได้',
+  'wp.delete': 'ลบ workspace',
+  'exp.exported': 'ส่งออก {n} รายการ',
+  'exp.exportedTitle': 'ส่งออก {n} รายการ ({kind})',
+  'exp.savedTo': 'บันทึกที่ {dir}',
+  'exp.download': 'ดาวน์โหลด .zip',
+  'exp.failed': 'ส่งออกไม่สำเร็จ',
+  'set.title': 'ตั้งค่า OCR',
+  'set.profile': 'โปรไฟล์',
+  'set.modelSource': 'แหล่งโมเดล',
+  'set.official': 'ทางการ (PaddleOCR)',
+  'set.custom': 'โมเดลกำหนดเอง',
+  'set.language': 'ภาษา',
+  'set.version': 'เวอร์ชัน PP-OCR',
+  'set.versionPh': 'ค่าเริ่มต้น (ล่าสุด)',
+  'set.detDir': 'โฟลเดอร์โมเดล detection',
+  'set.recDir': 'โฟลเดอร์โมเดล recognition',
+  'set.recLang': 'ภาษา recognition (char dict)',
+  'set.customNote':
+    'แต่ละโฟลเดอร์ต้องเป็นโมเดล PaddleOCR 3.x (inference.json + inference.pdiparams + inference.yml) โมเดลจาก 2.x ต้อง re-export ก่อน วางไว้ใต้ ./models บนเครื่อง',
+  'set.detTuning': 'ปรับ detection',
+  'set.boxThresh': 'เกณฑ์กล่อง detection',
+  'set.unclip': 'อัตราขยายกล่อง',
+  'set.textline': 'ตัวจำแนกทิศทางบรรทัด',
+  'set.save': 'บันทึก',
+  'set.applyNote': 'มีผลกับโปรไฟล์ที่เลือก และโหลด OCR ใหม่ตอน detect ครั้งถัดไป',
+  'set.savedToast': 'บันทึกแล้ว — OCR จะโหลดใหม่ตอนรันครั้งถัดไป',
+  'ver.versions': 'เวอร์ชัน',
+  'ver.new': 'เวอร์ชันใหม่…',
+  'ver.newTitle': 'เวอร์ชันใหม่',
+  'ver.newDesc': 'คัดลอกจากเวอร์ชันปัจจุบัน ({v}) แล้วสลับไปใช้',
+  'ver.name': 'ชื่อเวอร์ชัน',
+  'ver.create': 'สร้าง',
+  'ver.created': 'สร้างเวอร์ชัน {n}',
+  'ver.deleted': 'ลบ {n}',
+  'relink.title': 'เชื่อมรูปใหม่',
+  'relink.desc':
+    'มี {n} รูปที่ทำ annotation ไว้แต่ไม่มีไฟล์ในเวิร์กสเปซนี้ อัปโหลดรูปต้นฉบับ (ชื่อไฟล์ต้องตรงกับ key) เพื่อเชื่อมกลับ',
+  'relink.upload': 'อัปโหลด & เชื่อม',
+};
+
+const DICT: Record<UILang, Dict> = { en, th };
+
+interface I18nState {
+  lang: UILang;
+  setLang: (l: UILang) => void;
+}
+
+function initialLang(): UILang {
+  try {
+    const v = localStorage.getItem('ui-lang');
+    if (v === 'th' || v === 'en') return v;
+  } catch {
+    /* ignore */
+  }
+  return 'en';
+}
+
+export const useI18n = create<I18nState>((set) => ({
+  lang: initialLang(),
+  setLang: (l) => {
+    try {
+      localStorage.setItem('ui-lang', l);
+    } catch {
+      /* ignore */
+    }
+    set({ lang: l });
+  },
+}));
+
+export type TFunc = (key: string, params?: Record<string, string | number>) => string;
+
+// Pure (testable) translation lookup with {param} interpolation.
+export function translate(
+  lang: UILang,
+  key: string,
+  params?: Record<string, string | number>,
+): string {
+  let s = DICT[lang]?.[key] ?? DICT.en[key] ?? key;
+  if (params) {
+    for (const k of Object.keys(params)) s = s.replace(`{${k}}`, String(params[k]));
+  }
+  return s;
+}
+
+export function useT(): TFunc {
+  const lang = useI18n((s) => s.lang);
+  return (key, params) => translate(lang, key, params);
+}

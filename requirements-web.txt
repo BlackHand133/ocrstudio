@@ -1,0 +1,8 @@
+# Runtime deps for the WEB backend image (no PyQt5; headless OpenCV).
+# detector.py uses the PaddleOCR 3.x API (predict / rec_polys) -> requires
+# paddlepaddle 3.x. paddleocr pulls its own deps (shapely, pyclipper, numpy, ...).
+paddlepaddle>=3.0.0
+paddleocr>=3.0.0
+opencv-python-headless>=4.8.0
+Pillow>=10.0.0
+PyYAML>=6.0.0

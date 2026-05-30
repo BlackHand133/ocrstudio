@@ -18,10 +18,29 @@ Usage:
     rec_exporter.export(output_dir, split_config, aug_config, crop_method)
 """
 
-from modules.export.base import BaseExporter
-from modules.export.detection import DetectionExporter
-from modules.export.recognition import RecognitionExporter
+# ExportValidationError and the image utils are Qt-free and safe to import eagerly.
 from modules.export.utils import ExportValidationError
+
+# DetectionExporter / RecognitionExporter import PyQt5, so they are loaded lazily
+# via PEP 562 __getattr__. This lets the headless web backend import
+# ``modules.export.utils`` (cropping, masks, splitting helpers) without pulling
+# in Qt, while ``from modules.export import DetectionExporter`` still works in the
+# desktop app.
+_LAZY = {
+    "BaseExporter": "base",
+    "DetectionExporter": "detection",
+    "RecognitionExporter": "recognition",
+}
+
+
+def __getattr__(name):
+    if name in _LAZY:
+        from importlib import import_module
+
+        module = import_module(f"modules.export.{_LAZY[name]}")
+        return getattr(module, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     'BaseExporter',

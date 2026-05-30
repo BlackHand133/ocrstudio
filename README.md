@@ -1,75 +1,48 @@
-# Ajan OCR Annotation Tool
+# OCR Studio
 
 [![CI](https://github.com/BlackHand133/ocrstudio/actions/workflows/ci.yml/badge.svg)](https://github.com/BlackHand133/ocrstudio/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![React 18 + TS](https://img.shields.io/badge/React_18-TypeScript-61dafb.svg)](https://react.dev/)
+[![PaddleOCR 3.x](https://img.shields.io/badge/PaddleOCR-3.x-green.svg)](https://github.com/PaddlePaddle/PaddleOCR)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PaddleOCR](https://img.shields.io/badge/PaddleOCR-2.6%2B-green.svg)](https://github.com/PaddlePaddle/PaddleOCR)
 
-A desktop OCR annotation tool built with PyQt5 and PaddleOCR, designed for creating high-quality
-text-detection and recognition datasets — with first-class Thai language support.
+A **browser-based OCR annotation tool** for building high-quality text **detection** and
+**recognition** datasets — with first-class **Thai** support. It pairs a FastAPI backend
+(reusing a Qt-free core) with a React + `react-konva` frontend and ships as a **single Docker
+container**: no noVNC, no X server — just open one URL.
+
+> **Web edition (v5).** A full rewrite of the original PyQt5 desktop app, redesigned to be easy to
+> use, fast, and deployable anywhere. It is **100% data-compatible** with the desktop tool — the same
+> `workspace.json` / `v1.json` format and PaddleOCR export — so existing workspaces open as-is.
+> The legacy desktop app still lives in this repo (see [below](#legacy-desktop-app)).
 
 ---
 
-## Quick Start (Docker — recommended)
-
-No local Python setup needed. The app runs in your browser via noVNC.
+## Quick start (Docker — recommended)
 
 ```bash
-# 1. Clone
 git clone https://github.com/BlackHand133/ocrstudio.git
 cd ocrstudio
 
-# 2. Start
-docker compose up
-
-# 3. Open http://localhost:6080 in your browser
+docker compose -f docker-compose.web.yml up --build
+# open http://localhost:8000
 ```
 
-Annotations are saved to `./workspaces/` on your host machine and survive container restarts.
-
-**GPU acceleration:**
-```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
-```
-
----
-
-## Local Installation
+Pick another host port if 8000 is taken:
 
 ```bash
-# Python 3.10+ required
-git clone https://github.com/BlackHand133/ocrstudio.git
-cd ocrstudio
-
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/Mac:
-source .venv/bin/activate
-
-pip install -r requirements.txt
-python main.py
+WEB_PORT=8088 docker compose -f docker-compose.web.yml up --build   # http://localhost:8088
 ```
 
----
-
-## CLI (Headless / Automation)
+**GPU (CUDA 11.8 + PaddlePaddle-GPU)** — needs the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html):
 
 ```bash
-# Detect text in all images in a workspace (no GUI)
-ajan-ocr-cli detect --workspace ./workspaces/my_project
-
-# Export annotations to PaddleOCR format
-ajan-ocr-cli export --workspace ./workspaces/my_project --output ./dataset
-
-# Print version
-ajan-ocr-cli version
+docker compose -f docker-compose.web.yml -f docker-compose.web.gpu.yml up --build
 ```
 
-Or without installing as a package:
-```bash
-python -m modules.cli detect --workspace ./workspaces/my_project
-```
+Data persists in mounted host folders: `./workspaces`, `./models`, `./data`, `./output_det`,
+`./output_rec`. The first OCR call downloads PaddleOCR weights (or mount pre-downloaded weights into
+`./models`); manual annotation works without them.
 
 ---
 
@@ -77,141 +50,132 @@ python -m modules.cli detect --workspace ./workspaces/my_project
 
 | Category | Details |
 |---|---|
-| **Annotation** | Quad boxes, polygons, mask regions, text transcription |
-| **Auto-detection** | PaddleOCR text detection + recognition |
-| **Languages** | Thai, English, Chinese, Japanese, and more |
-| **Workspaces** | Multi-workspace, JSON-based version control |
-| **Export** | PaddleOCR format (Label.txt + fileState.txt), train/val/test split |
-| **Image formats** | PNG, JPG, BMP, TIFF, WebP, JFIF, and 10 more |
-| **Hardware** | CPU (default) and NVIDIA GPU |
-| **Container** | Docker + noVNC browser GUI (port 6080) |
+| **Annotation tools** | Box (quad), polygon, censor/mask (solid / blur / pixelate), text transcription, difficult flag |
+| **Fast labeling** | Keyboard-driven workflow, multi-select, copy/paste & duplicate boxes, copy boxes from previous image, sticky draw, reading-order sort, vertex insert/delete, nudge |
+| **Auto-detection** | PaddleOCR text detection + recognition — single image or **batch** with live progress |
+| **Models** | Official PaddleOCR (per-language) or custom PaddleOCR **3.x** inference models |
+| **Workspaces** | Multi-workspace, JSON version control (create / switch / delete) |
+| **Export** | PaddleOCR detection + recognition, train/val/test split, PNG/JPG, mask blackout, rotation-aware, **auto text-orientation**, **augmentation**, ZIP download — runs as a background job with progress |
+| **Image handling** | Upload or mounted folder, virtualized list + thumbnails (1000s of images), search/filter, rotation 0/90/180/270, relink-missing |
+| **UX** | Light/dark theme, Thai/English UI, auto-save + unsaved-changes guard |
+| **Ops** | CPU + NVIDIA GPU images, container healthcheck, optional HTTP Basic-auth gate |
 
 ---
 
-## Keyboard Shortcuts
+## Labeling: tools & keyboard
 
-| Shortcut | Action |
+Tools: **Select · Box · Polygon · Censor/Mask**. Toggle the 🔒 next to the tool switch to keep a draw
+tool active (draw many shapes in a row). Boxes with no transcription are outlined amber and tagged
+*no text*.
+
+| Key | Action |
 |---|---|
-| `Ctrl+N` | New workspace |
-| `Ctrl+O` | Open workspace |
-| `Ctrl+S` | Save annotations |
-| `Ctrl+Z` / `Ctrl+Y` | Undo / Redo |
-| `Delete` | Delete selected annotation |
-| `Ctrl+D` | Run auto-detection |
-| `Ctrl+E` | Export dataset |
-| `Space` / `Backspace` | Next / previous image |
-| `+` / `-` | Zoom in / out |
-| `Ctrl+Wheel` | Zoom |
-| `F11` | Fullscreen |
+| `V` / `D` or `Q` / `P` / `M` | Select / Box / Polygon / Mask tool |
+| `PgUp` / `PgDn` | Previous / next image (auto-saves first) |
+| `↑` / `↓` (no selection) | Previous / next image |
+| `↑↓←→` (box selected) | Nudge 1 px (`Shift` = 10 px) |
+| `Tab` / `Shift+Tab` | Next / previous box **and focus its text field** |
+| `Enter` or double-click | Finish polygon |
+| `Ctrl+C / X / V` · `Ctrl+D` | Copy / cut / paste · duplicate boxes |
+| `Ctrl+A` | Select all · `Shift+click` adds/removes a box |
+| `Delete` / `Backspace` | Delete selection |
+| `Ctrl+Z` / `Ctrl+Y` · `Ctrl+S` | Undo / redo · save |
+| `+` / `-` / `0` / `F` | Zoom in / out / 100% / fit |
+| right-click polygon vertex · double-click edge | Delete / insert a vertex |
+
+Panel actions: **sort by reading order**, **copy boxes from the previous image**, bulk
+**mark difficult** / **delete**, and **convert any box ↔ censor**.
 
 ---
 
-## Configuration
+## Architecture
 
-| File | Purpose |
-|---|---|
-| `config/config.yaml` | Active profile, app-level settings |
-| `config/profiles/cpu.yaml` | PaddleOCR params for CPU |
-| `config/profiles/gpu.yaml` | PaddleOCR params for GPU |
-| `data/app_config.json` | Window state, last workspace |
-| `data/recent_workspaces.json` | Recent-workspace list |
+```
+Browser (React 18 + TS, Vite, Mantine, react-konva, Zustand, TanStack Query)
+   │  HTTP / JSON  (+ polling for batch jobs)
+FastAPI (server/) ── serves the built SPA + /api on one port
+   │  imports (reuse, no Qt)
+modules/  ── workspace manager · PaddleOCR detector · config · export utils · augmentation
+```
 
-Change the active profile from **Settings → Profile** in the GUI, or set
-`default_profile: gpu` in `config/config.yaml`.
+- **Single container**: Node builds the SPA → Python serves the SPA **and** the API on one port.
+- **Backend** (`server/`): routers for workspaces, images, annotations, versions, detect, export,
+  config, jobs; an in-memory job registry powers async batch OCR + export with progress polling.
+- **Frontend** (`frontend/`): 3-pane editor (image list · canvas · annotation panel).
+
+See **[WEB.md](WEB.md)** for the full run guide, API reference, and details.
+
+### Data compatibility
+
+The backend reads/writes through the original `WorkspaceManager`, so the on-disk format is identical
+to the desktop app:
+
+- `workspaces/<id>/workspace.json` — metadata, source folder, versions, settings
+- `workspaces/<id>/v1.json` — `annotations`, `transforms` (rotation), `metadata`
+- PaddleOCR export — `Label.txt` / `fileState.txt`, train/val/test split
+
+> Custom recognition/detection models must be **PaddleOCR 3.x** inference models
+> (`inference.json` + `inference.pdiparams` + `inference.yml`). Models exported from 2.x must be
+> re-exported. Mount them under `./models`.
 
 ---
 
-## Development
+## Local development
 
-### Setup
-
-```bash
-pip install -e .[dev]
-pip install pre-commit
-pre-commit install       # installs git hooks: black, isort, flake8, file-hygiene
-```
-
-### Tests
+Two processes. Backend (any env with the project + server deps):
 
 ```bash
-# Fast unit tests (no Qt, no GPU)
-pytest tests/unit/ -m "not gui and not slow"
-
-# All tests with coverage report
-pytest tests/unit/ --cov=modules/core --cov=modules/utils --cov=modules/config --cov-report=term-missing
+pip install -r requirements.txt -r requirements-server.txt
+uvicorn server.main:app --reload          # http://localhost:8000
 ```
 
-### Type-checking & formatting
+Frontend (Vite dev server, proxies `/api` → `:8000`):
 
 ```bash
-mypy modules/core/ modules/utils/ modules/config/ --ignore-missing-imports
-black modules/ tests/
-isort modules/ tests/
-flake8 modules/ --max-line-length=100 --extend-ignore=E203,W503 --exclude=modules/gui/
+cd frontend
+npm install
+npm run dev                                # http://localhost:5173
 ```
-
-### Project layout
-
-```
-ocrstudio/
-├── main.py                    # GUI entry point
-├── modules/
-│   ├── cli.py                 # Headless CLI entry point (no Qt)
-│   ├── config/                # ConfigManager singleton + YAML profiles
-│   ├── core/
-│   │   ├── app_state.py       # Centralised mutable state (QObject + signals)
-│   │   ├── services.py        # Backend services dataclass (DI container)
-│   │   ├── undo_redo.py       # Command-pattern undo/redo stack
-│   │   ├── ocr/               # PaddleOCR detector + orientation classifier
-│   │   └── workspace/         # Storage, version management, workspace manager
-│   ├── data/                  # Data-processing utilities
-│   ├── export/                # Export formatters
-│   ├── gui/
-│   │   ├── main_window.py     # Coordinator — widget refs only, no business logic
-│   │   ├── handlers/          # Event handlers (DI: AppState + Services)
-│   │   ├── dialogs/           # Settings, workspace, export dialogs
-│   │   └── items/             # QGraphicsItem annotation shapes
-│   └── utils/                 # file_io, validation, image helpers
-├── config/                    # YAML configuration files
-├── data/                      # Runtime JSON state (gitignored)
-├── models/                    # OCR models (gitignored)
-├── workspaces/                # User workspaces (gitignored)
-├── tests/
-│   ├── conftest.py
-│   └── unit/                  # 87 Qt-free unit tests
-├── docker/
-│   └── entrypoint.sh
-├── Dockerfile
-├── docker-compose.yml
-├── docker-compose.gpu.yml
-├── .pre-commit-config.yaml
-├── pyproject.toml
-└── requirements.txt
-```
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed description of the module structure,
-data-flow, and design decisions.
 
 ---
 
-## Troubleshooting
+## Tests & CI
 
-**`ModuleNotFoundError: PyQt5`**
 ```bash
-pip install PyQt5
+# Backend — web API round-trip (FastAPI TestClient, no GPU/Qt/paddle needed)
+pip install -r requirements-test.txt
+pytest tests/test_api_server.py -q
+
+# Frontend — Vitest unit tests
+cd frontend && npm run test
 ```
 
-**PaddleOCR models not found**
-- Set paths in **Settings → PaddleOCR Settings**
-- Models are not bundled; download them separately
+CI (`.github/workflows/ci.yml`) runs on every push/PR: backend lint + core unit tests + web API
+tests, frontend build + Vitest, and a CPU Docker build on push.
 
-**GPU not detected in Docker**
-- Install [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
-- Use `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up`
+### Optional: password-protect the server
 
-**Application crashes on startup**
-- Check `logs/` directory for the full traceback
-- Delete `data/app_config.json` to reset window state
+Set both env vars to require HTTP Basic auth on every request except `/api/health`:
+
+```bash
+OCR_USER=admin OCR_PASS=secret docker compose -f docker-compose.web.yml up -d
+```
+
+Leave either unset to keep the server open (the default for single-user local use).
+
+---
+
+## Legacy desktop app
+
+The original PyQt5 desktop application is still in the repo and unchanged:
+
+```bash
+pip install -r requirements.txt
+python main.py
+```
+
+A headless CLI (`python -m modules.cli`) and the noVNC Docker setup (`Dockerfile`,
+`docker-compose.yml`) remain available. New work targets the web edition above.
 
 ---
 
@@ -222,6 +186,5 @@ MIT — see [LICENSE](LICENSE).
 ## Acknowledgments
 
 - [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) — OCR engine
-- [PyQt5](https://www.riverbankcomputing.com/software/pyqt/) — GUI framework
-- [OpenCV](https://opencv.org/) — Image processing
-- [noVNC](https://novnc.com/) — Browser-based VNC client
+- [FastAPI](https://fastapi.tiangolo.com/) · [React](https://react.dev/) · [Mantine](https://mantine.dev/) · [react-konva](https://konvajs.org/docs/react/) — web stack
+- [OpenCV](https://opencv.org/) — image processing

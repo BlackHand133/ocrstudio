@@ -14,10 +14,11 @@ open as-is.
 > move / corner-resize / zoom-pan), editable transcription + difficult flag,
 > client-side undo/redo, **image rotation (0/90/180/270)**, save + auto-save,
 > **OCR (single + batch with progress)**, **version control**
-> (create / switch / delete), and **dataset export** (PaddleOCR detection +
-> recognition, train/val/test split, png/jpg, mask blackout, rotation-aware,
-> **augmentation**, **auto text-orientation**, zip download — runs as a
-> **background job with progress**), plus a **GPU Docker image**, light/dark
+> (create / switch / delete), and **dataset export** in **selectable formats**
+> (PaddleOCR det/rec · ICDAR-2015 · COCO · YOLO · CSV/JSONL) — train/val/test
+> split, png/jpg, mask blackout, rotation-aware, **augmentation**, **auto
+> text-orientation**, zip download, **background job with progress**), plus a
+> **GPU Docker image**, light/dark
 > **theme** + **Thai/English** UI, an optional **Basic-auth gate**, and a
 > container **healthcheck**. Planned next: multi-user auth (future). See the
 > plan file for the full roadmap.
@@ -108,6 +109,23 @@ Panel actions: **sort by reading order** (top→bottom, left→right), **copy bo
 from the previous image** (repeated layouts), bulk **mark difficult** / **delete**
 when multiple boxes are selected, and **convert any box ↔ censor**.
 
+## Export formats
+
+Choose a target format in the Export dialog (`dataset_format` in the API). All share
+the same train/val/test split, PNG/JPG output, censor-mask burn-in and rotation:
+
+| Format | Kind | Layout |
+|---|---|---|
+| `paddleocr` | det + rec | `labels_<split>.txt` (det) · `<split>.txt` + `images/<split>/*` crops (rec) |
+| `icdar` | det | `<split>/images/` + `<split>/gt/gt_<img>.txt` — `x1,y1,…,x4,y4,transcription` (`###` = ignore) |
+| `coco` | det | `<split>/images/` + `<split>/instances.json` — bbox + segmentation, single `text` category |
+| `yolo` | det | `images/<split>/` + `labels/<split>/*.txt` (`0 cx cy w h` normalized) + `data.yaml` |
+| `csv` | det + rec | `<split>.csv` — rec: `image,text` · det: `image,points,transcription,difficult` |
+| `jsonl` | det + rec | `<split>.jsonl` — rec: `{image,text}` · det: `{image,width,height,boxes[]}` |
+
+`icdar` / `coco` / `yolo` are detection-only (the API returns 400 for recognition, and the
+UI disables it). Augmentation applies to the `paddleocr` format only.
+
 ## Tests
 
 Backend — web API round-trip (FastAPI `TestClient`, no GPU/Qt/paddle needed):
@@ -159,7 +177,7 @@ Leave either unset to keep the server open (the default, single-user local use).
 | GET/POST | `/api/workspaces/{id}/versions` | list / create version |
 | POST | `/api/workspaces/{id}/versions/{name}/switch` | switch current version |
 | DELETE | `/api/workspaces/{id}/versions/{name}` | delete a version |
-| POST | `/api/workspaces/{id}/export` | export detection/recognition dataset |
+| POST | `/api/workspaces/{id}/export` | export dataset (`kind` + `dataset_format`: paddleocr/icdar/coco/yolo/csv/jsonl) |
 | GET | `/api/workspaces/{id}/export/{folder}/download` | download exported dataset as .zip |
 
 Interactive docs at `/docs` (Swagger) when the server is running.

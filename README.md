@@ -55,7 +55,7 @@ Data persists in mounted host folders: `./workspaces`, `./models`, `./data`, `./
 | **Auto-detection** | PaddleOCR text detection + recognition — single image or **batch** with live progress |
 | **Models** | Official PaddleOCR (per-language) or custom PaddleOCR **3.x** inference models |
 | **Workspaces** | Multi-workspace, JSON version control (create / switch / delete) |
-| **Export** | PaddleOCR detection + recognition, train/val/test split, PNG/JPG, mask blackout, rotation-aware, **auto text-orientation**, **augmentation**, ZIP download — runs as a background job with progress |
+| **Export** | **Selectable formats** — PaddleOCR (det + rec), ICDAR-2015, COCO, YOLO, CSV/JSONL — train/val/test split, PNG/JPG, mask blackout, rotation-aware, **auto text-orientation**, **augmentation** (PaddleOCR), ZIP download — background job with progress |
 | **Image handling** | Upload or mounted folder, virtualized list + thumbnails (1000s of images), search/filter, rotation 0/90/180/270, relink-missing |
 | **UX** | Light/dark theme, Thai/English UI, auto-save + unsaved-changes guard |
 | **Ops** | CPU + NVIDIA GPU images, container healthcheck, optional HTTP Basic-auth gate |
@@ -112,11 +112,26 @@ to the desktop app:
 
 - `workspaces/<id>/workspace.json` — metadata, source folder, versions, settings
 - `workspaces/<id>/v1.json` — `annotations`, `transforms` (rotation), `metadata`
-- PaddleOCR export — `Label.txt` / `fileState.txt`, train/val/test split
+- Dataset export — train/val/test split label files (PaddleOCR, plus the formats below)
 
 > Custom recognition/detection models must be **PaddleOCR 3.x** inference models
 > (`inference.json` + `inference.pdiparams` + `inference.yml`). Models exported from 2.x must be
 > re-exported. Mount them under `./models`.
+
+### Export formats
+
+Pick a target format in the Export dialog. All share the same train/val/test split,
+PNG/JPG output, censor-mask burn-in and rotation handling:
+
+| Format | Kind | Output |
+|---|---|---|
+| **PaddleOCR** | det + rec | `labels_<split>.txt` (det) · `<split>.txt` + cropped lines (rec) |
+| **ICDAR-2015** | det | `<split>/images/` + `<split>/gt/gt_<img>.txt` (`x1,y1,…,x4,y4,transcription`) |
+| **COCO** | det | `<split>/images/` + `instances.json` (bbox + segmentation, single `text` category) |
+| **YOLO** | det | `images/<split>/` + `labels/<split>/*.txt` (`0 cx cy w h` normalized) + `data.yaml` |
+| **CSV / JSONL** | det + rec | per-split manifest (`image,text` · `{image,width,height,boxes}`) |
+
+ICDAR / COCO / YOLO are detection-only; augmentation applies to the PaddleOCR format.
 
 ---
 

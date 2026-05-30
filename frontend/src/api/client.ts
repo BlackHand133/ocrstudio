@@ -12,12 +12,20 @@ import type {
 
 export type DatasetFormat = 'paddleocr' | 'icdar' | 'coco' | 'yolo' | 'csv' | 'jsonl';
 
+export type SplitMode = 'percentage' | 'count' | 'stratified';
+
 export interface ExportParams {
   kind: 'detection' | 'recognition';
   dataset_format?: DatasetFormat;
+  split_mode?: SplitMode;
   train: number;
   valid: number;
   test: number;
+  train_count?: number;
+  valid_count?: number;
+  test_count?: number;
+  n_bins?: number;
+  group_by_image?: boolean;
   seed?: number | null;
   image_format: 'png' | 'jpg';
   crop_method: 'bbox' | 'rotated';
@@ -25,8 +33,15 @@ export interface ExportParams {
   selected_keys?: string[];
   augment?: boolean;
   aug_mode?: 'combinatorial' | 'sequential';
+  aug_copies?: number;
   augmentations?: { type: string; params: Record<string, unknown> }[];
   aug_targets?: string[];
+}
+
+export interface SplitPreview {
+  unit: string;
+  total: number;
+  splits: Record<string, number>;
 }
 
 async function jget<T>(url: string): Promise<T> {
@@ -141,4 +156,6 @@ export const api = {
   // ---- export (returns a job id; poll getJob for progress + result) ----
   exportDataset: (ws: string, params: ExportParams) =>
     jsend<{ job_id: string }>('POST', `/api/workspaces/${encodeURIComponent(ws)}/export`, params),
+  previewSplit: (ws: string, params: ExportParams) =>
+    jsend<SplitPreview>('POST', `/api/workspaces/${encodeURIComponent(ws)}/export/preview`, params),
 };

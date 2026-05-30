@@ -55,7 +55,7 @@ Data persists in mounted host folders: `./workspaces`, `./models`, `./data`, `./
 | **Auto-detection** | PaddleOCR text detection + recognition — single image or **batch** with live progress |
 | **Models** | Official PaddleOCR (per-language) or custom PaddleOCR **3.x** inference models |
 | **Workspaces** | Multi-workspace, JSON version control (create / switch / delete) |
-| **Export** | **Selectable formats** — PaddleOCR (det + rec), ICDAR-2015, COCO, YOLO, CSV/JSONL — train/val/test split, PNG/JPG, mask blackout, rotation-aware, **auto text-orientation**, **augmentation** (PaddleOCR), ZIP download — background job with progress |
+| **Export** | **Selectable formats** (PaddleOCR · ICDAR-2015 · COCO · YOLO · CSV/JSONL); split by **percentage / fixed count / stratified** with a live **preview**, image-grouped recognition split (no leakage); PNG/JPG, mask blackout, rotation-aware, **auto text-orientation**, **augmentation** with randomized copies; ZIP download — background job |
 | **Image handling** | Upload or mounted folder, virtualized list + thumbnails (1000s of images), search/filter, rotation 0/90/180/270, relink-missing |
 | **UX** | Light/dark theme, Thai/English UI, auto-save + unsaved-changes guard |
 | **Ops** | CPU + NVIDIA GPU images, container healthcheck, optional HTTP Basic-auth gate |

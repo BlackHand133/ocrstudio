@@ -119,9 +119,17 @@ class ExportRequest(BaseModel):
     # Output format. "paddleocr" supports both kinds; icdar/coco/yolo are
     # detection-only; csv/jsonl are generic manifests for either kind.
     dataset_format: str = "paddleocr"  # paddleocr | icdar | coco | yolo | csv | jsonl
+    # Split: "percentage" (train/valid/test %), "count" (fixed N), or
+    # "stratified" (balanced by box density [det] / text length [rec]).
+    split_mode: str = "percentage"
     train: float = 80
     valid: float = 10
     test: float = 10
+    train_count: int = 0
+    valid_count: int = 0
+    test_count: int = 0
+    n_bins: int = 3  # stratified: number of strata
+    group_by_image: bool = True  # recognition: keep an image's crops in one split
     seed: Optional[int] = None
     image_format: str = "png"  # "png" | "jpg"
     crop_method: str = "bbox"  # recognition only: "bbox" | "rotated"
@@ -130,6 +138,7 @@ class ExportRequest(BaseModel):
     # Augmentation (applied to target splits only)
     augment: bool = False
     aug_mode: str = "combinatorial"  # "combinatorial" (1 img/aug) | "sequential"
+    aug_copies: int = 1  # randomized variants per source image
     augmentations: List[AugSpec] = Field(default_factory=list)
     aug_targets: List[str] = Field(default_factory=lambda: ["train"])
 

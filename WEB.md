@@ -124,7 +124,16 @@ the same train/val/test split, PNG/JPG output, censor-mask burn-in and rotation:
 | `jsonl` | det + rec | `<split>.jsonl` — rec: `{image,text}` · det: `{image,width,height,boxes[]}` |
 
 `icdar` / `coco` / `yolo` are detection-only (the API returns 400 for recognition, and the
-UI disables it). Augmentation applies to the `paddleocr` format only.
+UI disables it).
+
+**Splitting** — percentage, fixed **count**, or **stratified** (balanced by box density for
+detection / text length for recognition). Recognition can keep an image's crops in one split
+(no train/val leakage). A **preview** (`POST .../export/preview`) returns per-split counts
+before exporting.
+
+**Augmentation** (works for every format) — pick augmentations + a mode (separate / combined)
+and the number of randomized **copies per image**; parameters are jittered within ranges and
+reproducible via the export `seed`. Geometric augments clamp boxes to the image bounds.
 
 ## Tests
 

@@ -690,6 +690,135 @@ def test_export_icdar_recognition_rejected(client, tmp_path):
     assert r.status_code == 400
 
 
+def test_export_split_by_count(client, tmp_path):
+    import numpy as np
+
+    from modules.utils import imwrite_unicode
+
+    ws_id = client.post("/api/workspaces", json={"name": "cnt"}).json()["id"]
+    images_dir = tmp_path / "workspaces" / ws_id / "images"
+    box = {"points": [[5, 5], [50, 5], [50, 30], [5, 30]], "transcription": "x", "difficult": False, "shape": "Quad"}
+    for i in range(10):
+        imwrite_unicode(str(images_dir / f"i{i}.png"), np.full((60, 120, 3), 255, dtype=np.uint8), image_format="png")
+        client.put(f"/api/workspaces/{ws_id}/annotations/i{i}.png", json={"annotations": [box], "rotation": 0})
+    job = _export_and_wait(
+        client,
+        ws_id,
+        {"kind": "detection", "split_mode": "count", "train_count": 6, "valid_count": 2, "test_count": 2, "seed": 1},
+    )
+    assert job["status"] == "done", job
+    s = job["result"]["splits"]
+    assert s.get("train") == 6 and s.get("valid") == 2 and s.get("test") == 2
+
+
+def test_export_stratified(client, tmp_path):
+    import numpy as np
+
+    from modules.utils import imwrite_unicode
+
+    ws_id = client.post("/api/workspaces", json={"name": "strat"}).json()["id"]
+    images_dir = tmp_path / "workspaces" / ws_id / "images"
+    for i in range(9):
+        imwrite_unicode(str(images_dir / f"s{i}.png"), np.full((80, 200, 3), 255, dtype=np.uint8), image_format="png")
+        nb = 1 if i % 3 == 0 else 3  # vary box density across images
+        boxes = [
+            {"points": [[5 + 30 * j, 5], [25 + 30 * j, 5], [25 + 30 * j, 25], [5 + 30 * j, 25]], "transcription": "x", "difficult": False, "shape": "Quad"}
+            for j in range(nb)
+        ]
+        client.put(f"/api/workspaces/{ws_id}/annotations/s{i}.png", json={"annotations": boxes, "rotation": 0})
+    job = _export_and_wait(
+        client,
+        ws_id,
+        {"kind": "detection", "split_mode": "stratified", "train": 60, "valid": 20, "test": 20, "n_bins": 2, "seed": 3},
+    )
+    assert job["status"] == "done", job
+    assert sum(job["result"]["splits"].values()) == 9  # no image lost
+
+
+def test_export_aug_copies(client, tmp_path):
+    ws_id = _make_ws_with_image(client, tmp_path)
+    job = _export_and_wait(
+        client,
+        ws_id,
+        {
+            "kind": "detection",
+            "train": 100,
+            "valid": 0,
+            "test": 0,
+            "augment": True,
+            "aug_mode": "combinatorial",
+            "aug_copies": 3,
+            "augmentations": [{"type": "rotation", "params": {"angle": 3}}],
+            "aug_targets": ["train"],
+            "seed": 7,
+        },
+    )
+    assert job["status"] == "done", job
+    assert job["result"]["total"] == 4  # original + 3 randomized copies
+
+
+def test_export_icdar_augmented(client, tmp_path):
+    import os as _os
+
+    ws_id = _make_ws_with_image(client, tmp_path)
+    job = _export_and_wait(
+        client,
+        ws_id,
+        {
+            "kind": "detection",
+            "dataset_format": "icdar",
+            "train": 100,
+            "valid": 0,
+            "test": 0,
+            "augment": True,
+            "aug_mode": "combinatorial",
+            "augmentations": [{"type": "blur", "params": {"kernel_size": 5}}, {"type": "grayscale", "params": {}}],
+            "aug_targets": ["train"],
+        },
+    )
+    assert job["status"] == "done", job
+    assert job["result"]["total"] == 3  # augmentation now works for ICDAR too
+    imgs = tmp_path / "output_det" / job["result"]["folder"] / "train" / "images"
+    assert len(_os.listdir(imgs)) == 3
+
+
+def test_export_recognition_group_by_image(client, tmp_path):
+    import numpy as np
+
+    from modules.utils import imwrite_unicode
+
+    ws_id = client.post("/api/workspaces", json={"name": "grp"}).json()["id"]
+    images_dir = tmp_path / "workspaces" / ws_id / "images"
+    for i in range(4):
+        imwrite_unicode(str(images_dir / f"g{i}.png"), np.full((60, 200, 3), 255, dtype=np.uint8), image_format="png")
+        boxes = [
+            {"points": [[5, 5], [40, 5], [40, 30], [5, 30]], "transcription": "a", "difficult": False, "shape": "Quad"},
+            {"points": [[50, 5], [90, 5], [90, 30], [50, 30]], "transcription": "b", "difficult": False, "shape": "Quad"},
+        ]
+        client.put(f"/api/workspaces/{ws_id}/annotations/g{i}.png", json={"annotations": boxes, "rotation": 0})
+    job = _export_and_wait(
+        client,
+        ws_id,
+        {"kind": "recognition", "train": 50, "valid": 0, "test": 50, "group_by_image": True, "seed": 2},
+    )
+    assert job["status"] == "done", job
+    s = job["result"]["splits"]
+    assert sum(s.values()) == 8  # 4 images x 2 crops
+    assert all(v % 2 == 0 for v in s.values()), s  # whole images stay together (no leakage)
+
+
+def test_export_preview(client, tmp_path):
+    ws_id = _make_ws_with_image(client, tmp_path)
+    r = client.post(
+        f"/api/workspaces/{ws_id}/export/preview",
+        json={"kind": "detection", "train": 100, "valid": 0, "test": 0},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["unit"] == "images" and body["total"] == 1
+    assert body["splits"]["train"] == 1
+
+
 def test_versioning_crud(client):
     ws_id = client.post("/api/workspaces", json={"name": "ver ws"}).json()["id"]
 

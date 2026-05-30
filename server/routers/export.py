@@ -49,8 +49,13 @@ def run_export(workspace_id: str, req: schemas.ExportRequest) -> schemas.ExportJ
         raise HTTPException(400, f"dataset_format must be one of {sorted(allowed_formats)}")
     if req.dataset_format in {"icdar", "coco", "yolo"} and req.kind != "detection":
         raise HTTPException(400, f"{req.dataset_format} format supports detection only")
-    if not 0 < (req.train + req.valid + req.test) <= 100:
-        raise HTTPException(400, "Split percentages must sum to between 1 and 100")
+    if req.split_mode not in ("percentage", "count", "stratified"):
+        raise HTTPException(400, "split_mode must be percentage / count / stratified")
+    if req.split_mode in ("percentage", "stratified"):
+        if not 0 < (req.train + req.valid + req.test) <= 100:
+            raise HTTPException(400, "Split percentages must sum to between 1 and 100")
+    elif (req.train_count + req.valid_count + req.test_count) <= 0:
+        raise HTTPException(400, "Split counts must sum to more than 0")
     try:
         ctx = get_workspace_context(workspace_id)
     except KeyError:
@@ -83,9 +88,11 @@ def run_export(workspace_id: str, req: schemas.ExportRequest) -> schemas.ExportJ
     if req.augment and req.augmentations:
         aug_config = {
             "mode": req.aug_mode,
+            "copies": max(1, req.aug_copies),
             "augmentations": [a.model_dump() for a in req.augmentations],
             "target_splits": req.aug_targets or ["train"],
         }
+    counts = {"train": req.train_count, "test": req.test_count, "valid": req.valid_count}
 
     job_id = jobs.create("export")
 
@@ -104,35 +111,36 @@ def run_export(workspace_id: str, req: schemas.ExportRequest) -> schemas.ExportJ
             image_format=req.image_format,
             selected_keys=selected,
             rotations=rotations,
+            aug_config=aug_config,
+            split_mode=req.split_mode,
+            counts=counts,
+            n_bins=req.n_bins,
             progress=progress,
+        )
+        rec_extra = dict(
+            crop_method=req.crop_method,
+            auto_orient=req.auto_orient,
+            group_by_image=req.group_by_image,
         )
         try:
             if req.kind == "detection":
-                if fmt == "paddleocr":
-                    result = export_service.export_detection(aug_config=aug_config, **common)
-                elif fmt == "icdar":
+                if fmt == "icdar":
                     result = export_service.export_icdar(**common)
                 elif fmt == "coco":
                     result = export_service.export_coco(**common)
                 elif fmt == "yolo":
                     result = export_service.export_yolo(**common)
-                else:  # csv | jsonl
+                elif fmt in ("csv", "jsonl"):
                     result = export_service.export_manifest_detection(fmt=fmt, **common)
+                else:  # paddleocr
+                    result = export_service.export_detection(**common)
             else:  # recognition
-                if fmt == "paddleocr":
-                    result = export_service.export_recognition(
-                        crop_method=req.crop_method,
-                        aug_config=aug_config,
-                        auto_orient=req.auto_orient,
-                        **common,
-                    )
-                else:  # csv | jsonl
+                if fmt in ("csv", "jsonl"):
                     result = export_service.export_manifest_recognition(
-                        fmt=fmt,
-                        crop_method=req.crop_method,
-                        auto_orient=req.auto_orient,
-                        **common,
+                        fmt=fmt, **common, **rec_extra
                     )
+                else:  # paddleocr
+                    result = export_service.export_recognition(**common, **rec_extra)
             jobs.update(
                 job_id,
                 status="done",
@@ -151,6 +159,36 @@ def run_export(workspace_id: str, req: schemas.ExportRequest) -> schemas.ExportJ
 
     threading.Thread(target=work, daemon=True).start()
     return schemas.ExportJobResponse(job_id=job_id)
+
+
+@router.post("/preview")
+def preview_export(workspace_id: str, req: schemas.ExportRequest):
+    """Return per-split item counts for the chosen options — no files written."""
+    try:
+        ctx = get_workspace_context(workspace_id)
+    except KeyError:
+        raise HTTPException(404, "Workspace not found")
+    version_data = ctx.wm.load_version(workspace_id, ctx.current_version) or {}
+    annotations = version_data.get("annotations", {})
+    source_index = image_service.build_index(ctx.source_folder)
+    selected = set(req.selected_keys) if req.selected_keys is not None else None
+    splits = {"train": req.train, "test": req.test, "valid": req.valid}
+    counts = {"train": req.train_count, "test": req.test_count, "valid": req.valid_count}
+    try:
+        return export_service.preview_split(
+            kind=req.kind,
+            source_index=source_index,
+            annotations=annotations,
+            splits=splits,
+            seed=req.seed,
+            selected_keys=selected,
+            split_mode=req.split_mode,
+            counts=counts,
+            n_bins=req.n_bins,
+            group_by_image=req.group_by_image,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, f"Preview failed: {exc}")
 
 
 @router.get("/{folder}/download")

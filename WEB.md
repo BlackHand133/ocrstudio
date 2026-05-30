@@ -84,7 +84,9 @@ uvicorn server.main:app --host 0.0.0.0 --port 8000
 
 Tools: **Select · Box · Polygon · Censor/Mask** (solid / blur / pixelate). Toggle
 the 🔒 next to the tool switch to keep a draw tool active (draw many shapes in a
-row). Boxes with no transcription are outlined amber and tagged *no text*.
+row). A **magnifier loupe** (toggle in the canvas toolbar) follows the cursor while
+drawing for precise placement. Boxes with no transcription are outlined amber and
+tagged *no text*.
 
 | Key | Action |
 |---|---|

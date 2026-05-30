@@ -51,7 +51,7 @@ Data persists in mounted host folders: `./workspaces`, `./models`, `./data`, `./
 | Category | Details |
 |---|---|
 | **Annotation tools** | Box (quad), polygon, censor/mask (solid / blur / pixelate), text transcription, difficult flag |
-| **Fast labeling** | Keyboard-driven workflow, multi-select, copy/paste & duplicate boxes, copy boxes from previous image, sticky draw, reading-order sort, vertex insert/delete, nudge |
+| **Fast labeling** | Keyboard-driven workflow, multi-select (Shift-click + **rubber-band**), copy/paste & duplicate boxes, copy from previous image, sticky draw, reading-order sort, polygon vertex insert/delete, arrow-nudge, **magnifier loupe** |
 | **Auto-detection** | PaddleOCR text detection + recognition — single image or **batch** with live progress |
 | **Models** | Official PaddleOCR (per-language) or custom PaddleOCR **3.x** inference models |
 | **Workspaces** | Multi-workspace, JSON version control (create / switch / delete) |

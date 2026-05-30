@@ -68,6 +68,7 @@ const en: Dict = {
   'canvas.zoomOut': 'Zoom out',
   'canvas.fit': 'Fit to screen',
   'canvas.previewCensor': 'Preview censor (masks solid)',
+  'canvas.loupe': 'Magnifier while drawing',
   'canvas.selectStart': 'Select an image from the list to start.',
   'canvas.status': '{w}×{h}px · {r}° · {n} boxes',
   // workspace picker
@@ -218,6 +219,7 @@ const th: Dict = {
   'canvas.zoomOut': 'ซูมออก',
   'canvas.fit': 'พอดีจอ',
   'canvas.previewCensor': 'พรีวิวเซ็นเซอร์ (ทึบ)',
+  'canvas.loupe': 'แว่นขยายตอนวาด',
   'canvas.selectStart': 'เลือกรูปจากรายการเพื่อเริ่ม',
   'canvas.status': '{w}×{h}px · {r}° · {n} กล่อง',
   'wp.subtitle': 'สร้าง workspace ใหม่ หรือเปิดอันที่มีอยู่เพื่อเริ่มทำ',

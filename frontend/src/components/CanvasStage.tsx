@@ -11,6 +11,7 @@ import {
   IconRotateClockwise,
   IconEye,
   IconEyeOff,
+  IconZoomScan,
 } from '@tabler/icons-react';
 import { useEditor } from '../store/editor';
 import { api } from '../api/client';
@@ -91,6 +92,7 @@ export function CanvasStage() {
     null,
   );
   const [reloadToken, setReloadToken] = useState(0);
+  const [loupe, setLoupe] = useState(true);
 
   const url =
     workspaceId && imageKey ? `${api.imageFileUrl(workspaceId, imageKey)}?t=${reloadToken}` : '';
@@ -612,6 +614,14 @@ export function CanvasStage() {
           >
             {maskPreview ? <IconEyeOff size={18} /> : <IconEye size={18} />}
           </ActionIcon>
+          <ActionIcon
+            variant={loupe ? 'filled' : 'subtle'}
+            color="indigo"
+            onClick={() => setLoupe((v) => !v)}
+            title={t('canvas.loupe')}
+          >
+            <IconZoomScan size={18} />
+          </ActionIcon>
           <Text size="xs" c="dimmed" w={42} ta="center">
             {Math.round(view.scale * 100)}%
           </Text>
@@ -626,6 +636,40 @@ export function CanvasStage() {
         >
           {t('canvas.status', { w: img.width, h: img.height, r: rotation, n: annotations.length })}
         </Text>
+      )}
+
+      {/* magnifier loupe — follows the cursor while a draw tool is active */}
+      {loupe && cursor && tool !== 'select' && img && (
+        <div
+          style={{
+            position: 'absolute',
+            right: 12,
+            top: 12,
+            zIndex: 6,
+            width: 150,
+            height: 150,
+            borderRadius: 8,
+            overflow: 'hidden',
+            border: '2px solid #adb5bd',
+            boxShadow: '0 1px 6px rgba(0,0,0,0.25)',
+            background: '#fff',
+            pointerEvents: 'none',
+          }}
+        >
+          <Stage width={150} height={150}>
+            <Layer>
+              <KonvaImage
+                image={img}
+                scaleX={5}
+                scaleY={5}
+                x={75 - cursor.x * 5}
+                y={75 - cursor.y * 5}
+              />
+              <Line points={[67, 75, 83, 75]} stroke="#fa5252" strokeWidth={1} listening={false} />
+              <Line points={[75, 67, 75, 83]} stroke="#fa5252" strokeWidth={1} listening={false} />
+            </Layer>
+          </Stage>
+        </div>
       )}
       </>
       )}

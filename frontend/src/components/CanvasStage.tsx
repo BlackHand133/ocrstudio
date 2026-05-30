@@ -16,6 +16,7 @@ import { useEditor } from '../store/editor';
 import { api } from '../api/client';
 import { saveCurrent } from '../controller';
 import { isMask, hexToRgba } from '../lib/masks';
+import { normRect, boxIntersectsRect } from '../lib/select';
 import { useT } from '../i18n';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -61,6 +62,7 @@ export function CanvasStage() {
 
   const select = useEditor((s) => s.select);
   const toggleMark = useEditor((s) => s.toggleMark);
+  const selectMany = useEditor((s) => s.selectMany);
   const setTool = useEditor((s) => s.setTool);
   const stickyTool = useEditor((s) => s.stickyTool);
   const snapshot = useEditor((s) => s.snapshot);
@@ -85,6 +87,9 @@ export function CanvasStage() {
   );
   const [polyPoints, setPolyPoints] = useState<number[][]>([]);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
+  const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(
+    null,
+  );
   const [reloadToken, setReloadToken] = useState(0);
 
   const url =
@@ -116,6 +121,7 @@ export function CanvasStage() {
     setDraft(null);
     setPolyPoints([]);
     setCursor(null);
+    setMarquee(null);
   }, [tool, imageKey]);
 
   const finishPolygon = () => {
@@ -213,7 +219,13 @@ export function CanvasStage() {
     } else if (tool === 'polygon') {
       if (p) setPolyPoints((prev) => [...prev, [p.x, p.y]]);
     } else if (isBg) {
-      select(null);
+      // Shift+drag on the background = rubber-band select; plain click = deselect.
+      if (e.evt.shiftKey && p) {
+        stage?.draggable(false); // suppress pan during marquee
+        setMarquee({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+      } else {
+        select(null);
+      }
     }
   };
 
@@ -221,9 +233,21 @@ export function CanvasStage() {
     const p = relPointer();
     if (p && tool !== 'select') setCursor(p);
     if (draft && p) setDraft({ ...draft, x1: p.x, y1: p.y });
+    if (marquee && p) setMarquee({ ...marquee, x1: p.x, y1: p.y });
   };
 
   const onMouseUp = () => {
+    if (marquee) {
+      const r = normRect(marquee.x0, marquee.y0, marquee.x1, marquee.y1);
+      const idxs = annotations
+        .map((a, i) => (boxIntersectsRect(a.points, r) ? i : -1))
+        .filter((i) => i >= 0);
+      setMarquee(null);
+      stageRef.current?.draggable(tool === 'select'); // restore pan
+      if (idxs.length) selectMany(idxs);
+      else select(null);
+      return;
+    }
     if (!draft) return;
     const x = Math.min(draft.x0, draft.x1);
     const y = Math.min(draft.y0, draft.y1);
@@ -535,6 +559,20 @@ export function CanvasStage() {
               dash={[sw(6), sw(4)]}
               strokeWidth={sw(2)}
               fill="rgba(66,99,235,0.08)"
+            />
+          )}
+
+          {marquee && (
+            <Rect
+              x={Math.min(marquee.x0, marquee.x1)}
+              y={Math.min(marquee.y0, marquee.y1)}
+              width={Math.abs(marquee.x1 - marquee.x0)}
+              height={Math.abs(marquee.y1 - marquee.y0)}
+              stroke="#7048e8"
+              dash={[sw(4), sw(4)]}
+              strokeWidth={sw(1)}
+              fill="rgba(112,72,232,0.08)"
+              listening={false}
             />
           )}
         </Layer>

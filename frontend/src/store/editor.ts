@@ -78,6 +78,7 @@ interface EditorState {
   select: (index: number | null) => void;
   toggleMark: (index: number) => void;
   selectAll: () => void;
+  selectMany: (indices: number[]) => void;
   clearMarks: () => void;
   selectAdjacent: (delta: number, focusEditor?: boolean) => void;
   requestEdit: () => void;
@@ -225,6 +226,13 @@ export const useEditor = create<EditorState>((set, get) => {
         const all = new Set<number>();
         for (let i = 0; i < n; i++) all.add(i);
         return { marked: all, selected: n - 1 };
+      }),
+
+    selectMany: (indices) =>
+      set((s) => {
+        const valid = indices.filter((i) => i >= 0 && i < s.annotations.length);
+        const marked = new Set<number>(valid);
+        return { marked, selected: valid.length ? valid[valid.length - 1] : null };
       }),
 
     clearMarks: () => set({ marked: NO_MARKS() }),

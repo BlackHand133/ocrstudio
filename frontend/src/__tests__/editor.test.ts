@@ -120,6 +120,18 @@ describe('editor store — labeling ops', () => {
     expect(useEditor.getState().selected).toBe(1);
   });
 
+  it('selects many by index (marquee), clamping out-of-range', () => {
+    useEditor.getState().addAnnotation(box(0));
+    useEditor.getState().addAnnotation(box(1));
+    useEditor.getState().addAnnotation(box(2));
+    useEditor.getState().selectMany([0, 2]);
+    expect(useEditor.getState().marked.size).toBe(2);
+    expect(useEditor.getState().selected).toBe(2);
+    useEditor.getState().selectMany([1, 99]); // 99 dropped
+    expect(useEditor.getState().marked.size).toBe(1);
+    expect(useEditor.getState().selected).toBe(1);
+  });
+
   it('converts a box to censor and back to text', () => {
     useEditor.getState().addAnnotation(box(0));
     useEditor.getState().convertToMask(0, '#000000', 'solid');

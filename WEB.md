@@ -98,6 +98,7 @@ row). Boxes with no transcription are outlined amber and tagged *no text*.
 | `Ctrl+D` | Duplicate selection |
 | `Ctrl+A` | Select all boxes |
 | `Shift+click` | Add / remove a box from the selection (bulk ops) |
+| `Shift+drag` (empty area) | Rubber-band select boxes |
 | `Delete` / `Backspace` | Delete selection |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
 | `Ctrl+S` | Save |

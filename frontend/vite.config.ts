@@ -13,5 +13,22 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    rollupOptions: {
+      output: {
+        // Split heavy vendors into their own chunks for faster first load +
+        // better browser caching (the app code changes far more often).
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          mantine: [
+            '@mantine/core',
+            '@mantine/hooks',
+            '@mantine/notifications',
+            '@mantine/dropzone',
+          ],
+          konva: ['konva', 'react-konva', 'use-image'],
+          query: ['@tanstack/react-query', '@tanstack/react-virtual'],
+        },
+      },
+    },
   },
 });

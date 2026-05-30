@@ -472,6 +472,136 @@ def test_export_empty_selected_is_not_all(client, tmp_path):
     assert r.status_code == 400  # explicit empty selection -> nothing to export
 
 
+def test_export_jpg_format(client, tmp_path):
+    """Both pipelines honour image_format=jpg."""
+    ws_id = _make_ws_with_image(client, tmp_path)
+    det = _export_and_wait(
+        client, ws_id, {"kind": "detection", "train": 100, "valid": 0, "test": 0, "image_format": "jpg"}
+    )
+    assert det["status"] == "done", det
+    assert (tmp_path / "output_det" / det["result"]["folder"] / "img" / "train" / "page1.jpg").exists()
+
+    rec = _export_and_wait(
+        client, ws_id, {"kind": "recognition", "train": 100, "valid": 0, "test": 0, "image_format": "jpg"}
+    )
+    assert rec["status"] == "done", rec
+    assert (
+        tmp_path / "output_rec" / rec["result"]["folder"] / "images" / "train" / "page1_0.jpg"
+    ).exists()
+
+
+def test_export_recognition_rotated_crop(client, tmp_path):
+    ws_id = _make_ws_with_image(client, tmp_path)
+    job = _export_and_wait(
+        client, ws_id, {"kind": "recognition", "train": 100, "valid": 0, "test": 0, "crop_method": "rotated"}
+    )
+    assert job["status"] == "done", job
+    assert job["result"]["total"] == 1
+    assert (
+        tmp_path / "output_rec" / job["result"]["folder"] / "images" / "train" / "page1_0.png"
+    ).exists()
+
+
+def test_export_recognition_augmented(client, tmp_path):
+    ws_id = _make_ws_with_image(client, tmp_path)
+    job = _export_and_wait(
+        client,
+        ws_id,
+        {
+            "kind": "recognition",
+            "train": 100,
+            "valid": 0,
+            "test": 0,
+            "augment": True,
+            "aug_mode": "combinatorial",
+            "augmentations": [
+                {"type": "grayscale", "params": {}},
+                {"type": "sharpen", "params": {"strength": 1}},
+            ],
+            "aug_targets": ["train"],
+        },
+    )
+    assert job["status"] == "done", job
+    assert job["result"]["total"] == 3  # original crop + 2 augmented crops
+
+
+def test_export_sequential_aug_mode(client, tmp_path):
+    ws_id = _make_ws_with_image(client, tmp_path)
+    job = _export_and_wait(
+        client,
+        ws_id,
+        {
+            "kind": "recognition",
+            "train": 100,
+            "valid": 0,
+            "test": 0,
+            "augment": True,
+            "aug_mode": "sequential",
+            "augmentations": [
+                {"type": "blur", "params": {"kernel_size": 5}},
+                {"type": "brightness_contrast", "params": {"brightness": 15, "contrast": 1.2}},
+            ],
+            "aug_targets": ["train"],
+        },
+    )
+    assert job["status"] == "done", job
+    assert job["result"]["total"] == 2  # original + 1 combined (sequential) image
+
+
+def test_export_multisplit(client, tmp_path):
+    import numpy as np
+
+    from modules.utils import imwrite_unicode
+
+    ws_id = client.post("/api/workspaces", json={"name": "split ws"}).json()["id"]
+    images_dir = tmp_path / "workspaces" / ws_id / "images"
+    box = {"points": [[5, 5], [50, 5], [50, 30], [5, 30]], "transcription": "x", "difficult": False, "shape": "Quad"}
+    for i in range(10):
+        name = f"i{i}.png"
+        imwrite_unicode(str(images_dir / name), np.full((60, 120, 3), 255, dtype=np.uint8), image_format="png")
+        client.put(f"/api/workspaces/{ws_id}/annotations/{name}", json={"annotations": [box], "rotation": 0})
+
+    job = _export_and_wait(
+        client, ws_id, {"kind": "detection", "train": 60, "valid": 20, "test": 20, "seed": 42}
+    )
+    assert job["status"] == "done", job
+    s = job["result"]["splits"]
+    assert s["train"] + s["valid"] + s["test"] == 10
+    assert s["train"] > 0 and s["valid"] > 0 and s["test"] > 0
+
+
+def test_export_blur_and_pixelate_masks(client, tmp_path):
+    """Non-solid censor modes (blur / pixelate) export without error and alter the region."""
+    import cv2
+    import numpy as np
+
+    from modules.utils import imwrite_unicode
+
+    for mode in ("blur", "pixelate"):
+        ws_id = client.post("/api/workspaces", json={"name": f"{mode} ws"}).json()["id"]
+        images_dir = tmp_path / "workspaces" / ws_id / "images"
+        rng = np.random.default_rng(0)
+        noisy = rng.integers(0, 255, (100, 200, 3), dtype=np.uint8)
+        imwrite_unicode(str(images_dir / "n.png"), noisy, image_format="png")
+        anns = [
+            {"points": [[5, 5], [60, 5], [60, 40], [5, 40]], "transcription": "t", "difficult": False, "shape": "Quad"},
+            {
+                "points": [[100, 50], [180, 50], [180, 95], [100, 95]],
+                "transcription": "###",
+                "difficult": False,
+                "shape": "Mask",
+                "mask_mode": mode,
+            },
+        ]
+        client.put(f"/api/workspaces/{ws_id}/annotations/n.png", json={"annotations": anns, "rotation": 0})
+        job = _export_and_wait(client, ws_id, {"kind": "detection", "train": 100, "valid": 0, "test": 0})
+        assert job["status"] == "done", (mode, job)
+        assert job["result"]["total"] == 1  # the mask is not a label
+        out = cv2.imread(str(tmp_path / "output_det" / job["result"]["folder"] / "img" / "train" / "n.png"))
+        out_region = out[60:90, 110:170]
+        assert not np.array_equal(noisy[60:90, 110:170], out_region), mode  # region was censored
+
+
 def test_versioning_crud(client):
     ws_id = client.post("/api/workspaces", json={"name": "ver ws"}).json()["id"]
 

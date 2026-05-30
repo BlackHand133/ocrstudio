@@ -116,6 +116,9 @@ class AugSpec(BaseModel):
 
 class ExportRequest(BaseModel):
     kind: str = "detection"  # "detection" | "recognition"
+    # Output format. "paddleocr" supports both kinds; icdar/coco/yolo are
+    # detection-only; csv/jsonl are generic manifests for either kind.
+    dataset_format: str = "paddleocr"  # paddleocr | icdar | coco | yolo | csv | jsonl
     train: float = 80
     valid: float = 10
     test: float = 10

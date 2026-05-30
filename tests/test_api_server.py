@@ -602,6 +602,94 @@ def test_export_blur_and_pixelate_masks(client, tmp_path):
         assert not np.array_equal(noisy[60:90, 110:170], out_region), mode  # region was censored
 
 
+def test_export_icdar_format(client, tmp_path):
+    ws_id = _make_ws_with_image(client, tmp_path)  # page1.png 320x120, quad "กขค"
+    job = _export_and_wait(
+        client, ws_id, {"kind": "detection", "dataset_format": "icdar", "train": 100, "valid": 0, "test": 0}
+    )
+    assert job["status"] == "done", job
+    d = tmp_path / "output_det" / job["result"]["folder"] / "train"
+    assert (d / "images" / "page1.png").exists()
+    gt = (d / "gt" / "gt_page1.txt").read_text(encoding="utf-8").strip()
+    parts = gt.split(",")
+    assert len(parts) == 9  # 8 coords + transcription
+    assert all(p.lstrip("-").isdigit() for p in parts[:8])
+    assert parts[8] == "กขค"
+
+
+def test_export_coco_format(client, tmp_path):
+    import json as _json
+
+    ws_id = _make_ws_with_image(client, tmp_path)
+    job = _export_and_wait(
+        client, ws_id, {"kind": "detection", "dataset_format": "coco", "train": 100, "valid": 0, "test": 0}
+    )
+    assert job["status"] == "done", job
+    d = tmp_path / "output_det" / job["result"]["folder"] / "train"
+    assert (d / "images" / "page1.png").exists()
+    coco = _json.loads((d / "instances.json").read_text(encoding="utf-8"))
+    assert coco["categories"] == [{"id": 1, "name": "text", "supercategory": "text"}]
+    assert len(coco["images"]) == 1 and len(coco["annotations"]) == 1
+    a = coco["annotations"][0]
+    assert a["category_id"] == 1 and len(a["bbox"]) == 4 and a["segmentation"]
+    assert a["text"] == "กขค"
+    assert coco["images"][0]["width"] == 320 and coco["images"][0]["height"] == 120
+
+
+def test_export_yolo_format(client, tmp_path):
+    ws_id = _make_ws_with_image(client, tmp_path)
+    job = _export_and_wait(
+        client, ws_id, {"kind": "detection", "dataset_format": "yolo", "train": 100, "valid": 0, "test": 0}
+    )
+    assert job["status"] == "done", job
+    base = tmp_path / "output_det" / job["result"]["folder"]
+    assert (base / "images" / "train" / "page1.png").exists()
+    nums = (base / "labels" / "train" / "page1.txt").read_text(encoding="utf-8").strip().split()
+    assert len(nums) == 5 and nums[0] == "0"
+    assert all(0.0 <= float(v) <= 1.0 for v in nums[1:])
+    yaml = (base / "data.yaml").read_text(encoding="utf-8")
+    assert "nc: 1" in yaml and "text" in yaml and "train: images/train" in yaml
+
+
+def test_export_csv_recognition(client, tmp_path):
+    ws_id = _make_ws_with_image(client, tmp_path)
+    job = _export_and_wait(
+        client, ws_id, {"kind": "recognition", "dataset_format": "csv", "train": 100, "valid": 0, "test": 0}
+    )
+    assert job["status"] == "done", job
+    d = tmp_path / "output_rec" / job["result"]["folder"]
+    rows = (d / "train.csv").read_text(encoding="utf-8").strip().splitlines()
+    assert rows[0] == "image,text"
+    assert "กขค" in rows[1] and "images/train/page1_0.png" in rows[1]
+    assert (d / "images" / "train" / "page1_0.png").exists()
+
+
+def test_export_jsonl_detection(client, tmp_path):
+    import json as _json
+
+    ws_id = _make_ws_with_image(client, tmp_path)
+    job = _export_and_wait(
+        client, ws_id, {"kind": "detection", "dataset_format": "jsonl", "train": 100, "valid": 0, "test": 0}
+    )
+    assert job["status"] == "done", job
+    d = tmp_path / "output_det" / job["result"]["folder"]
+    rec = _json.loads((d / "train.jsonl").read_text(encoding="utf-8").strip().splitlines()[0])
+    assert rec["image"] == "img/train/page1.png"
+    assert rec["width"] == 320 and rec["height"] == 120
+    assert len(rec["boxes"]) == 1 and rec["boxes"][0]["transcription"] == "กขค"
+    assert len(rec["boxes"][0]["points"]) == 4
+    assert (d / "img" / "train" / "page1.png").exists()
+
+
+def test_export_icdar_recognition_rejected(client, tmp_path):
+    ws_id = _make_ws_with_image(client, tmp_path)
+    r = client.post(
+        f"/api/workspaces/{ws_id}/export",
+        json={"kind": "recognition", "dataset_format": "icdar", "train": 100},
+    )
+    assert r.status_code == 400
+
+
 def test_versioning_crud(client):
     ws_id = client.post("/api/workspaces", json={"name": "ver ws"}).json()["id"]
 

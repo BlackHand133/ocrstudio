@@ -7,6 +7,7 @@ import {
   Modal,
   NumberInput,
   Progress,
+  Select,
   SegmentedControl,
   Stack,
   Switch,
@@ -14,7 +15,7 @@ import {
 } from '@mantine/core';
 import { IconDownload } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
-import { api, type ExportParams } from '../../api/client';
+import { api, type DatasetFormat, type ExportParams } from '../../api/client';
 import { useEditor } from '../../store/editor';
 import { useImages } from '../../hooks/queries';
 import { saveCurrent } from '../../controller';
@@ -32,12 +33,23 @@ const AUGS: { type: string; label: string; params: Record<string, unknown> }[] =
   { type: 'random_erasing', label: 'Random erase', params: { prob: 1, area_ratio: 0.06 } },
 ];
 
+const FORMATS: { value: DatasetFormat; label: string }[] = [
+  { value: 'paddleocr', label: 'PaddleOCR (det + rec)' },
+  { value: 'icdar', label: 'ICDAR-2015 (det)' },
+  { value: 'coco', label: 'COCO (det)' },
+  { value: 'yolo', label: 'YOLO (det)' },
+  { value: 'csv', label: 'CSV manifest' },
+  { value: 'jsonl', label: 'JSONL manifest' },
+];
+const DET_ONLY: DatasetFormat[] = ['icdar', 'coco', 'yolo'];
+
 export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const t = useT();
   const workspaceId = useEditor((s) => s.workspaceId);
   const excluded = useEditor((s) => s.excluded);
   const { data: images } = useImages(workspaceId);
   const [kind, setKind] = useState<'detection' | 'recognition'>('detection');
+  const [datasetFormat, setDatasetFormat] = useState<DatasetFormat>('paddleocr');
   const [train, setTrain] = useState<number>(80);
   const [valid, setValid] = useState<number>(10);
   const [test, setTest] = useState<number>(10);
@@ -61,6 +73,7 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
       await saveCurrent(); // persist unsaved edits — export reads from disk
       const params: ExportParams = {
         kind,
+        dataset_format: datasetFormat,
         train,
         valid,
         test,
@@ -71,7 +84,7 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
       if (excluded.size && images?.length) {
         params.selected_keys = images.filter((i) => !excluded.has(i.key)).map((i) => i.key);
       }
-      if (augment && selAugs.length) {
+      if (datasetFormat === 'paddleocr' && augment && selAugs.length) {
         params.augment = true;
         params.aug_mode = augMode;
         params.augmentations = AUGS.filter((a) => selAugs.includes(a.type)).map((a) => ({
@@ -105,6 +118,19 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
   return (
     <Modal opened={opened} onClose={onClose} title={t('exp.title')} size="md">
       <Stack gap="sm">
+        <Select
+          label={t('exp.format')}
+          value={datasetFormat}
+          onChange={(v) => {
+            const f = (v as DatasetFormat) || 'paddleocr';
+            setDatasetFormat(f);
+            if (DET_ONLY.includes(f)) setKind('detection');
+          }}
+          data={FORMATS}
+          allowDeselect={false}
+          comboboxProps={{ withinPortal: true }}
+        />
+
         <div>
           <Text size="sm" fw={500} mb={4}>
             {t('exp.dsType')}
@@ -115,9 +141,18 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
             onChange={(v) => setKind(v as 'detection' | 'recognition')}
             data={[
               { label: t('exp.detection'), value: 'detection' },
-              { label: t('exp.recognition'), value: 'recognition' },
+              {
+                label: t('exp.recognition'),
+                value: 'recognition',
+                disabled: DET_ONLY.includes(datasetFormat),
+              },
             ]}
           />
+          {DET_ONLY.includes(datasetFormat) && (
+            <Text size="xs" c="dimmed" mt={4}>
+              {t('exp.formatDetOnly')}
+            </Text>
+          )}
         </div>
 
         <div>
@@ -174,12 +209,14 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
           />
         )}
 
-        <Switch
-          label={t('exp.augment')}
-          checked={augment}
-          onChange={(e) => setAugment(e.currentTarget.checked)}
-        />
-        {augment && (
+        {datasetFormat === 'paddleocr' && (
+          <Switch
+            label={t('exp.augment')}
+            checked={augment}
+            onChange={(e) => setAugment(e.currentTarget.checked)}
+          />
+        )}
+        {datasetFormat === 'paddleocr' && augment && (
           <Stack gap="xs" pl="xs">
             <Checkbox.Group value={selAugs} onChange={setSelAugs}>
               <Group gap="xs">

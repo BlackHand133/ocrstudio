@@ -84,6 +84,8 @@ const en: Dict = {
   'wp.createFailed': 'Create failed',
   // export modal
   'exp.title': 'Export dataset',
+  'exp.format': 'Export format',
+  'exp.formatDetOnly': 'This format supports detection only.',
   'exp.dsType': 'Dataset type',
   'exp.detection': 'Detection (boxes)',
   'exp.recognition': 'Recognition (crops)',
@@ -221,6 +223,8 @@ const th: Dict = {
   'wp.enterName': 'กรุณาใส่ชื่อ workspace',
   'wp.createFailed': 'สร้างไม่สำเร็จ',
   'exp.title': 'ส่งออก dataset',
+  'exp.format': 'ฟอร์แมตส่งออก',
+  'exp.formatDetOnly': 'ฟอร์แมตนี้รองรับเฉพาะ detection',
   'exp.dsType': 'ชนิด dataset',
   'exp.detection': 'Detection (กล่อง)',
   'exp.recognition': 'Recognition (รูปตัด)',

@@ -10,8 +10,11 @@ import type {
   Annotation,
 } from '../types';
 
+export type DatasetFormat = 'paddleocr' | 'icdar' | 'coco' | 'yolo' | 'csv' | 'jsonl';
+
 export interface ExportParams {
   kind: 'detection' | 'recognition';
+  dataset_format?: DatasetFormat;
   train: number;
   valid: number;
   test: number;

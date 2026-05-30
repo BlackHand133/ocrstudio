@@ -44,6 +44,11 @@ def _safe_folder(folder: str) -> str:
 def run_export(workspace_id: str, req: schemas.ExportRequest) -> schemas.ExportJobResponse:
     if req.kind not in ("detection", "recognition"):
         raise HTTPException(400, "kind must be 'detection' or 'recognition'")
+    allowed_formats = {"paddleocr", "icdar", "coco", "yolo", "csv", "jsonl"}
+    if req.dataset_format not in allowed_formats:
+        raise HTTPException(400, f"dataset_format must be one of {sorted(allowed_formats)}")
+    if req.dataset_format in {"icdar", "coco", "yolo"} and req.kind != "detection":
+        raise HTTPException(400, f"{req.dataset_format} format supports detection only")
     if not 0 < (req.train + req.valid + req.test) <= 100:
         raise HTTPException(400, "Split percentages must sum to between 1 and 100")
     try:
@@ -68,7 +73,10 @@ def run_export(workspace_id: str, req: schemas.ExportRequest) -> schemas.ExportJ
         raise HTTPException(400, "No annotated images to export.")
 
     out_root = _out_root(req.kind)
-    folder = f"{workspace_id}_{ctx.current_version}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    folder = (
+        f"{workspace_id}_{ctx.current_version}_{req.dataset_format}_"
+        f"{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    )
     splits = {"train": req.train, "test": req.test, "valid": req.valid}
 
     aug_config = None
@@ -85,37 +93,46 @@ def run_export(workspace_id: str, req: schemas.ExportRequest) -> schemas.ExportJ
         def progress(done: int, total: int) -> None:
             jobs.update(job_id, done=done, total=total)
 
+        fmt = req.dataset_format
+        common = dict(
+            source_index=source_index,
+            annotations=annotations,
+            out_dir=out_root,
+            folder_name=folder,
+            splits=splits,
+            seed=req.seed,
+            image_format=req.image_format,
+            selected_keys=selected,
+            rotations=rotations,
+            progress=progress,
+        )
         try:
             if req.kind == "detection":
-                result = export_service.export_detection(
-                    source_index=source_index,
-                    annotations=annotations,
-                    out_dir=out_root,
-                    folder_name=folder,
-                    splits=splits,
-                    seed=req.seed,
-                    image_format=req.image_format,
-                    selected_keys=selected,
-                    rotations=rotations,
-                    aug_config=aug_config,
-                    progress=progress,
-                )
-            else:
-                result = export_service.export_recognition(
-                    source_index=source_index,
-                    annotations=annotations,
-                    out_dir=out_root,
-                    folder_name=folder,
-                    splits=splits,
-                    seed=req.seed,
-                    image_format=req.image_format,
-                    crop_method=req.crop_method,
-                    selected_keys=selected,
-                    rotations=rotations,
-                    aug_config=aug_config,
-                    auto_orient=req.auto_orient,
-                    progress=progress,
-                )
+                if fmt == "paddleocr":
+                    result = export_service.export_detection(aug_config=aug_config, **common)
+                elif fmt == "icdar":
+                    result = export_service.export_icdar(**common)
+                elif fmt == "coco":
+                    result = export_service.export_coco(**common)
+                elif fmt == "yolo":
+                    result = export_service.export_yolo(**common)
+                else:  # csv | jsonl
+                    result = export_service.export_manifest_detection(fmt=fmt, **common)
+            else:  # recognition
+                if fmt == "paddleocr":
+                    result = export_service.export_recognition(
+                        crop_method=req.crop_method,
+                        aug_config=aug_config,
+                        auto_orient=req.auto_orient,
+                        **common,
+                    )
+                else:  # csv | jsonl
+                    result = export_service.export_manifest_recognition(
+                        fmt=fmt,
+                        crop_method=req.crop_method,
+                        auto_orient=req.auto_orient,
+                        **common,
+                    )
             jobs.update(
                 job_id,
                 status="done",

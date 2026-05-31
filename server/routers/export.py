@@ -199,9 +199,10 @@ def preview_export(workspace_id: str, req: schemas.ExportRequest):
 
 
 @router.post("/augment-preview")
-def augment_preview(workspace_id: str, req: schemas.ExportRequest):
+def augment_preview(workspace_id: str, req: schemas.ExportRequest, sample_index: int = Query(0)):
     """Render a small gallery showing each selected augmentation on one real
-    sample image — original first, then one image per effect. No files written."""
+    sample image — original first, then one image per effect. ``sample_index``
+    cycles through eligible images (densest first). No files written."""
     try:
         ctx = get_workspace_context(workspace_id)
     except KeyError:
@@ -219,6 +220,7 @@ def augment_preview(workspace_id: str, req: schemas.ExportRequest):
             selected_keys=selected,
             specs=[a.model_dump() for a in req.augmentations],
             mode=req.aug_mode,
+            sample_index=sample_index,
         )
     except ValueError as exc:
         raise HTTPException(400, str(exc))

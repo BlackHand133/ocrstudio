@@ -58,6 +58,8 @@ export interface AugPreview {
   sample_key: string;
   box_count: number;
   samples: AugSample[];
+  eligible_count: number;
+  sample_index: number;
 }
 
 async function jget<T>(url: string): Promise<T> {
@@ -180,10 +182,10 @@ export const api = {
     jsend<{ job_id: string }>('POST', `/api/workspaces/${encodeURIComponent(ws)}/export`, params),
   previewSplit: (ws: string, params: ExportParams) =>
     jsend<SplitPreview>('POST', `/api/workspaces/${encodeURIComponent(ws)}/export/preview`, params),
-  previewAugment: (ws: string, params: ExportParams) =>
+  previewAugment: (ws: string, params: ExportParams, sampleIndex = 0) =>
     jsend<AugPreview>(
       'POST',
-      `/api/workspaces/${encodeURIComponent(ws)}/export/augment-preview`,
+      `/api/workspaces/${encodeURIComponent(ws)}/export/augment-preview?sample_index=${sampleIndex}`,
       params,
     ),
 };

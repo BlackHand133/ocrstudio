@@ -910,13 +910,23 @@ def preview_split(
 
 
 def pick_augment_preview(
-    *, source_index, annotations, rotations=None, selected_keys=None, specs, mode, max_size=360
+    *,
+    source_index,
+    annotations,
+    rotations=None,
+    selected_keys=None,
+    specs,
+    mode,
+    sample_index=0,
+    max_size=360,
 ) -> dict:
     """Render an augmentation gallery from one representative annotated image.
 
-    Picks the eligible image with the most boxes (so geometric augments are
-    obvious), applies each selected augmentation once, and returns inline
-    thumbnails. Raises ``ValueError`` when there is nothing to preview.
+    Eligible images are ordered by box count (densest first) so the default
+    sample shows geometric augments clearly; ``sample_index`` cycles through
+    them (wraps around) so the UI can flip to a different image. Applies each
+    selected augmentation once and returns inline thumbnails. Raises
+    ``ValueError`` when there is nothing to preview.
     """
     if not specs:
         raise ValueError("Select at least one augmentation to preview.")
@@ -924,10 +934,18 @@ def pick_augment_preview(
     if not keys:
         raise ValueError("No annotated image available to preview.")
     density = _density(keys, annotations)
-    key = max(keys, key=lambda k: density.get(k, 0))
+    keys.sort(key=lambda k: (density.get(k, 0), k), reverse=True)
+    idx = int(sample_index) % len(keys)
+    key = keys[idx]
     img, normal = _prep_det_image(source_index, key, annotations, rotations or {})
     if img is None:
         raise ValueError("Could not load the sample image.")
     boxes = [a["points"] for a in normal]
     samples = render_aug_samples(img, specs, mode, boxes=boxes, max_size=max_size)
-    return {"sample_key": key, "box_count": len(boxes), "samples": samples}
+    return {
+        "sample_key": key,
+        "box_count": len(boxes),
+        "samples": samples,
+        "eligible_count": len(keys),
+        "sample_index": idx,
+    }

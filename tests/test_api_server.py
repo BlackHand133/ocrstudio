@@ -316,8 +316,15 @@ def test_augment_preview_gallery(client, tmp_path):
     data = r.json()
     assert data["sample_key"] == "page1.png"
     assert data["box_count"] == 1
+    assert data["eligible_count"] == 1 and data["sample_index"] == 0
     assert [s["label"] for s in data["samples"]] == ["original", "blur", "grayscale"]
     assert all(s["image"].startswith("data:image/jpeg;base64,") for s in data["samples"])
+
+    # sample_index wraps around the eligible images (only one here -> back to it)
+    r2 = client.post(
+        f"/api/workspaces/{ws_id}/export/augment-preview?sample_index=5", json=body
+    )
+    assert r2.status_code == 200 and r2.json()["sample_index"] == 0
 
 
 def test_augment_preview_sequential_adds_combined(client, tmp_path):

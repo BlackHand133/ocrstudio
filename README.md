@@ -103,7 +103,7 @@ modules/  ── workspace manager · PaddleOCR detector · config · export uti
   config, jobs; an in-memory job registry powers async batch OCR + export with progress polling.
 - **Frontend** (`frontend/`): 3-pane editor (image list · canvas · annotation panel).
 
-See **[WEB.md](WEB.md)** for the full run guide, API reference, and details.
+See **[docs/WEB.md](docs/WEB.md)** for the full run guide, API reference, and details.
 
 ### Data compatibility
 

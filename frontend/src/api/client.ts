@@ -182,10 +182,11 @@ export const api = {
     jsend<{ job_id: string }>('POST', `/api/workspaces/${encodeURIComponent(ws)}/export`, params),
   previewSplit: (ws: string, params: ExportParams) =>
     jsend<SplitPreview>('POST', `/api/workspaces/${encodeURIComponent(ws)}/export/preview`, params),
-  previewAugment: (ws: string, params: ExportParams, sampleIndex = 0) =>
+  previewAugment: (ws: string, params: ExportParams, sampleIndex = 0, maxSize = 720) =>
     jsend<AugPreview>(
       'POST',
-      `/api/workspaces/${encodeURIComponent(ws)}/export/augment-preview?sample_index=${sampleIndex}`,
+      `/api/workspaces/${encodeURIComponent(ws)}/export/augment-preview` +
+        `?sample_index=${sampleIndex}&max_size=${maxSize}`,
       params,
     ),
 };

@@ -168,6 +168,8 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
   const [augPreview, setAugPreview] = useState<AugPreview | null>(null);
   const [augBusy, setAugBusy] = useState(false);
   const [sampleIdx, setSampleIdx] = useState(0);
+  const [previewScope, setPreviewScope] = useState<'selected' | 'all'>('selected');
+  const [zoom, setZoom] = useState<{ label: string; image: string } | null>(null);
 
   // editing an effect's params invalidates both previews so counts/gallery refresh
   const clearPreviews = () => {
@@ -234,12 +236,29 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
     }
   };
 
-  const doAugPreview = async (idx = 0) => {
-    if (!workspaceId || !selAugs.length) return;
+  // Build the preview request: "selected" mirrors the export choices; "all"
+  // shows every available effect (catalog view) so the user can compare them.
+  const buildAugPreviewParams = (scope: 'selected' | 'all'): ExportParams => {
+    const defs = scope === 'all' ? AUG_DEFS : AUG_DEFS.filter((d) => selAugs.includes(d.type));
+    return {
+      ...buildParams(),
+      augment: true,
+      aug_mode: scope === 'all' ? 'combinatorial' : augMode,
+      augmentations: defs.map((d) => ({
+        type: d.type,
+        params: { ...(d.fixed ?? {}), ...augParams[d.type] },
+      })),
+      aug_targets: ['train'],
+    };
+  };
+
+  const doAugPreview = async (idx = 0, scope: 'selected' | 'all' = previewScope) => {
+    if (!workspaceId) return;
+    if (scope === 'selected' && !selAugs.length) return;
     setAugBusy(true);
     try {
       await saveCurrent();
-      const ap = await api.previewAugment(workspaceId, buildParams(), idx);
+      const ap = await api.previewAugment(workspaceId, buildAugPreviewParams(scope), idx);
       setAugPreview(ap);
       setSampleIdx(ap.sample_index);
     } catch (e) {
@@ -255,7 +274,8 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
     const next = Math.max(0, Math.min(3, nextRaw));
     setActive(next);
     if (next === 1 && workspaceId && !preview) void doPreview();
-    if (next === 2 && augment && selAugs.length && !augPreview) void doAugPreview(0);
+    if (next === 2 && augment && !augPreview && (previewScope === 'all' || selAugs.length))
+      void doAugPreview(0);
     if (next === 3 && workspaceId) void doPreview();
   };
 
@@ -302,7 +322,21 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
   const finalTotal = preview?.aug_total ?? preview?.total ?? 0;
 
   return (
-    <Modal opened={opened} onClose={close} title={t('exp.title')} size="lg">
+    <Modal opened={opened} onClose={close} title={t('exp.title')} size="64rem">
+      {/* full-size preview lightbox (click a sample to enlarge) */}
+      <Modal
+        opened={!!zoom}
+        onClose={() => setZoom(null)}
+        title={zoom?.label}
+        size="auto"
+        centered
+        zIndex={400}
+      >
+        {zoom && (
+          <Image src={zoom.image} alt={zoom.label} fit="contain" mah="78vh" maw="86vw" />
+        )}
+      </Modal>
+
       <Stepper active={active} onStepClick={goStep} size="sm" mb="md">
         {/* ── Step 1: format & type ───────────────────────────── */}
         <Stepper.Step label={t('exp.step1')} description={t('exp.step1d')}>
@@ -544,14 +578,28 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
                 <Text size="xs" c="dimmed">
                   {t('exp.augNote')}
                 </Text>
+                <Divider label={t('exp.augPreview')} labelPosition="left" />
                 <Group gap="xs" align="center">
+                  <SegmentedControl
+                    size="xs"
+                    value={previewScope}
+                    onChange={(v) => {
+                      const sc = v as 'selected' | 'all';
+                      setPreviewScope(sc);
+                      void doAugPreview(0, sc);
+                    }}
+                    data={[
+                      { label: t('exp.previewSelected'), value: 'selected' },
+                      { label: t('exp.previewAll'), value: 'all' },
+                    ]}
+                  />
                   <Button
                     size="compact-xs"
                     variant="light"
                     leftSection={<IconPhoto size={14} />}
-                    onClick={() => doAugPreview(0)}
+                    onClick={() => doAugPreview(0, previewScope)}
                     loading={augBusy}
-                    disabled={!selAugs.length}
+                    disabled={previewScope === 'selected' && !selAugs.length}
                   >
                     {t('exp.augPreview')}
                   </Button>
@@ -560,37 +608,41 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
                       size="compact-xs"
                       variant="subtle"
                       leftSection={<IconRefresh size={14} />}
-                      onClick={() => doAugPreview(sampleIdx + 1)}
+                      onClick={() => doAugPreview(sampleIdx + 1, previewScope)}
                       loading={augBusy}
                     >
                       {t('exp.otherSample')}
                     </Button>
                   )}
-                  {augPreview && (
-                    <Text size="xs" c="dimmed">
-                      {t('exp.sampleIdx', {
-                        i: augPreview.sample_index + 1,
-                        n: augPreview.eligible_count,
-                      })}{' '}
-                      · {augPreview.sample_key} ({augPreview.box_count})
-                    </Text>
-                  )}
                 </Group>
-                {!selAugs.length && (
+                {augPreview && (
+                  <Text size="xs" c="dimmed">
+                    {t('exp.sampleIdx', {
+                      i: augPreview.sample_index + 1,
+                      n: augPreview.eligible_count,
+                    })}{' '}
+                    · {augPreview.sample_key} ({augPreview.box_count}) · {t('exp.clickZoom')}
+                  </Text>
+                )}
+                {previewScope === 'selected' && !selAugs.length && (
                   <Text size="xs" c="orange">
                     {t('exp.noAugSelected')}
                   </Text>
                 )}
                 {augPreview && (
-                  <SimpleGrid cols={3} spacing="xs" verticalSpacing="xs">
+                  <SimpleGrid cols={{ base: 2, sm: 3, md: 4 }} spacing="sm" verticalSpacing="sm">
                     {augPreview.samples.map((s, i) => (
-                      <Stack key={`${s.label}-${i}`} gap={2} align="center">
+                      <Stack key={`${s.label}-${i}`} gap={4} align="center">
                         <Image
                           src={s.image}
+                          alt={s.label}
                           radius="sm"
                           fit="contain"
-                          h={110}
+                          h={170}
+                          onClick={() => setZoom(s)}
                           style={{
+                            cursor: 'zoom-in',
+                            background: 'var(--mantine-color-gray-1)',
                             border:
                               s.label === 'original'
                                 ? '2px solid var(--mantine-color-blue-5)'
@@ -598,8 +650,9 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
                           }}
                         />
                         <Text
-                          size="xs"
-                          c={s.label === 'original' ? 'blue' : 'dimmed'}
+                          size="sm"
+                          fw={s.label === 'original' ? 600 : 400}
+                          c={s.label === 'original' ? 'blue' : undefined}
                           ta="center"
                           lineClamp={1}
                         >

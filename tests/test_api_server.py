@@ -326,6 +326,14 @@ def test_augment_preview_gallery(client, tmp_path):
     )
     assert r2.status_code == 200 and r2.json()["sample_index"] == 0
 
+    # max_size render resolution is validated (200..1200)
+    assert client.post(
+        f"/api/workspaces/{ws_id}/export/augment-preview?max_size=240", json=body
+    ).status_code == 200
+    assert client.post(
+        f"/api/workspaces/{ws_id}/export/augment-preview?max_size=50", json=body
+    ).status_code == 422
+
 
 def test_augment_preview_sequential_adds_combined(client, tmp_path):
     ws_id = _make_ws_with_image(client, tmp_path)

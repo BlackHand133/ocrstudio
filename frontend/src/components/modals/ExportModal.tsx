@@ -40,16 +40,59 @@ import { saveCurrent } from '../../controller';
 import { useT } from '../../i18n';
 import type { ExportResult } from '../../types';
 
-const AUGS: { type: string; label: string; params: Record<string, unknown> }[] = [
-  { type: 'blur', label: 'Blur', params: { kernel_size: 5 } },
-  { type: 'noise', label: 'Noise', params: { noise_type: 'gaussian', intensity: 20 } },
-  { type: 'brightness_contrast', label: 'Brightness', params: { brightness: 15, contrast: 1.2 } },
-  { type: 'grayscale', label: 'Grayscale', params: {} },
-  { type: 'sharpen', label: 'Sharpen', params: { strength: 1 } },
-  { type: 'rotation', label: 'Rotate ±3°', params: { angle: 3 } },
-  { type: 'perspective', label: 'Perspective', params: { strength: 0.08 } },
-  { type: 'random_erasing', label: 'Random erase', params: { prob: 1, area_ratio: 0.06 } },
+// Per-effect tunable parameters. `fixed` carries non-UI params the backend
+// needs; each `params` entry becomes a labelled NumberInput the user can adjust.
+type ParamSpec = { key: string; label: string; min: number; max: number; step: number; def: number };
+type AugDef = { type: string; label: string; params: ParamSpec[]; fixed?: Record<string, unknown> };
+
+const AUG_DEFS: AugDef[] = [
+  { type: 'blur', label: 'Blur', params: [{ key: 'kernel_size', label: 'Kernel', min: 3, max: 25, step: 2, def: 5 }] },
+  {
+    type: 'noise',
+    label: 'Noise',
+    fixed: { noise_type: 'gaussian' },
+    params: [{ key: 'intensity', label: 'Intensity', min: 5, max: 80, step: 5, def: 20 }],
+  },
+  {
+    type: 'brightness_contrast',
+    label: 'Brightness',
+    params: [
+      { key: 'brightness', label: 'Brightness', min: -80, max: 80, step: 5, def: 15 },
+      { key: 'contrast', label: 'Contrast', min: 0.5, max: 2, step: 0.05, def: 1.2 },
+    ],
+  },
+  { type: 'grayscale', label: 'Grayscale', params: [] },
+  { type: 'sharpen', label: 'Sharpen', params: [{ key: 'strength', label: 'Strength', min: 0.2, max: 3, step: 0.1, def: 1 }] },
+  { type: 'rotation', label: 'Rotate', params: [{ key: 'angle', label: 'Max angle°', min: 1, max: 30, step: 1, def: 3 }] },
+  { type: 'perspective', label: 'Perspective', params: [{ key: 'strength', label: 'Strength', min: 0.02, max: 0.3, step: 0.01, def: 0.08 }] },
+  {
+    type: 'color_jitter',
+    label: 'Color',
+    params: [
+      { key: 'saturation', label: 'Saturation', min: 0.3, max: 2, step: 0.05, def: 1.3 },
+      { key: 'hue', label: 'Hue', min: -0.5, max: 0.5, step: 0.02, def: 0.05 },
+    ],
+  },
+  {
+    type: 'shear',
+    label: 'Shear',
+    params: [
+      { key: 'shear_x', label: 'Shear X', min: 0, max: 0.4, step: 0.02, def: 0.1 },
+      { key: 'shear_y', label: 'Shear Y', min: 0, max: 0.4, step: 0.02, def: 0 },
+    ],
+  },
+  {
+    type: 'random_erasing',
+    label: 'Random erase',
+    fixed: { prob: 1 },
+    params: [{ key: 'area_ratio', label: 'Area', min: 0.02, max: 0.4, step: 0.02, def: 0.06 }],
+  },
 ];
+
+const defaultAugParams = (): Record<string, Record<string, number>> =>
+  Object.fromEntries(
+    AUG_DEFS.map((d) => [d.type, Object.fromEntries(d.params.map((p) => [p.key, p.def]))]),
+  );
 
 const FORMATS: { value: DatasetFormat; label: string }[] = [
   { value: 'paddleocr', label: 'PaddleOCR (det + rec)' },
@@ -121,9 +164,28 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
   const [augMode, setAugMode] = useState<'combinatorial' | 'sequential'>('combinatorial');
   const [augCopies, setAugCopies] = useState<number>(1);
   const [selAugs, setSelAugs] = useState<string[]>(['blur', 'brightness_contrast']);
+  const [augParams, setAugParams] = useState<Record<string, Record<string, number>>>(defaultAugParams);
   const [augPreview, setAugPreview] = useState<AugPreview | null>(null);
   const [augBusy, setAugBusy] = useState(false);
   const [sampleIdx, setSampleIdx] = useState(0);
+
+  // editing an effect's params invalidates both previews so counts/gallery refresh
+  const clearPreviews = () => {
+    setAugPreview(null);
+    setPreview(null);
+  };
+  const setParam = (type: string, key: string, val: number) => {
+    setAugParams((prev) => ({ ...prev, [type]: { ...prev[type], [key]: val } }));
+    clearPreviews();
+  };
+  const toggleAug = (type: string, on: boolean) => {
+    setSelAugs((prev) => (on ? [...prev, type] : prev.filter((x) => x !== type)));
+    clearPreviews();
+  };
+  const resetAugParams = () => {
+    setAugParams(defaultAugParams());
+    clearPreviews();
+  };
 
   const sum = train + valid + test;
   const splitInvalid = splitMode !== 'count' && (sum <= 0 || sum > 100);
@@ -153,9 +215,9 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
       params.augment = true;
       params.aug_mode = augMode;
       params.aug_copies = augCopies;
-      params.augmentations = AUGS.filter((a) => selAugs.includes(a.type)).map((a) => ({
-        type: a.type,
-        params: a.params,
+      params.augmentations = AUG_DEFS.filter((d) => selAugs.includes(d.type)).map((d) => ({
+        type: d.type,
+        params: { ...(d.fixed ?? {}), ...augParams[d.type] },
       }));
       params.aug_targets = ['train'];
     }
@@ -414,28 +476,49 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
             />
             {augment && (
               <>
-                <Checkbox.Group
-                  value={selAugs}
-                  onChange={(v) => {
-                    setSelAugs(v);
-                    setAugPreview(null);
-                    setPreview(null);
-                  }}
-                >
-                  <Group gap="xs">
-                    {AUGS.map((a) => (
-                      <Checkbox key={a.type} value={a.type} label={a.label} size="xs" />
-                    ))}
-                  </Group>
-                </Checkbox.Group>
+                <Stack gap={6}>
+                  {AUG_DEFS.map((d) => {
+                    const on = selAugs.includes(d.type);
+                    return (
+                      <Group key={d.type} gap="sm" align="center" wrap="wrap">
+                        <Checkbox
+                          size="xs"
+                          label={d.label}
+                          checked={on}
+                          onChange={(e) => toggleAug(d.type, e.currentTarget.checked)}
+                          styles={{ root: { minWidth: 120 }, label: { fontWeight: 500 } }}
+                        />
+                        {on &&
+                          d.params.map((p) => (
+                            <NumberInput
+                              key={p.key}
+                              size="xs"
+                              w={118}
+                              label={p.label}
+                              min={p.min}
+                              max={p.max}
+                              step={p.step}
+                              decimalScale={Number.isInteger(p.step) ? 0 : 2}
+                              value={augParams[d.type]?.[p.key] ?? p.def}
+                              onChange={(v) => setParam(d.type, p.key, Number(v))}
+                            />
+                          ))}
+                        {on && d.params.length === 0 && (
+                          <Text size="xs" c="dimmed">
+                            {t('exp.noParams')}
+                          </Text>
+                        )}
+                      </Group>
+                    );
+                  })}
+                </Stack>
                 <Group gap="sm" align="flex-end">
                   <SegmentedControl
                     size="xs"
                     value={augMode}
                     onChange={(v) => {
                       setAugMode(v as 'combinatorial' | 'sequential');
-                      setAugPreview(null);
-                      setPreview(null);
+                      clearPreviews();
                     }}
                     data={[
                       { label: t('exp.augSeparate'), value: 'combinatorial' },
@@ -454,6 +537,9 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
                       setPreview(null);
                     }}
                   />
+                  <Button size="compact-xs" variant="subtle" color="gray" onClick={resetAugParams}>
+                    {t('exp.resetParams')}
+                  </Button>
                 </Group>
                 <Text size="xs" c="dimmed">
                   {t('exp.augNote')}

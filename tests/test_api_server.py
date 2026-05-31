@@ -389,6 +389,45 @@ def test_preview_split_no_aug_has_no_aug_fields(client, tmp_path):
     assert "aug_total" not in r.json()
 
 
+def test_export_augment_custom_params(client, tmp_path):
+    """Custom per-effect params + the color_jitter / shear effects export cleanly."""
+    ws_id = _make_ws_with_image(client, tmp_path)
+    body = {
+        "kind": "detection",
+        "train": 100,
+        "valid": 0,
+        "test": 0,
+        "augment": True,
+        "aug_mode": "combinatorial",
+        "augmentations": [
+            {"type": "blur", "params": {"kernel_size": 9}},
+            {"type": "color_jitter", "params": {"saturation": 1.5, "hue": 0.1}},
+            {"type": "shear", "params": {"shear_x": 0.15, "shear_y": 0.05}},
+        ],
+        "aug_targets": ["train"],
+    }
+    job = _export_and_wait(client, ws_id, body)
+    assert job["status"] == "done", job
+    assert job["result"]["splits"]["train"] == 4  # original + 3 effects
+    det_dir = tmp_path / "output_det" / job["result"]["folder"]
+    assert len(list((det_dir / "img" / "train").glob("*.png"))) == 4
+
+
+def test_augment_preview_new_effects(client, tmp_path):
+    """color_jitter + shear render in the gallery with custom params."""
+    ws_id = _make_ws_with_image(client, tmp_path)
+    body = {
+        "aug_mode": "combinatorial",
+        "augmentations": [
+            {"type": "shear", "params": {"shear_x": 0.2, "shear_y": 0.0}},
+            {"type": "color_jitter", "params": {"saturation": 1.4, "hue": 0.1}},
+        ],
+    }
+    r = client.post(f"/api/workspaces/{ws_id}/export/augment-preview", json=body)
+    assert r.status_code == 200, r.text
+    assert [s["label"] for s in r.json()["samples"]] == ["original", "shear", "color_jitter"]
+
+
 def test_export_solid_mask_burned_in(client, tmp_path):
     import cv2
     import numpy as np

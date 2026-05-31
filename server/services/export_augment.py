@@ -50,6 +50,17 @@ def _resolve_params(aug_type: str, params: dict, rng: random.Random, jitter: boo
     elif aug_type == "sharpen":
         s = float(params.get("strength", 1))
         p["strength"] = rng.uniform(max(0.2, s * 0.5), s * 1.5)
+    elif aug_type == "color_jitter":
+        sat = float(params.get("saturation", 1.3)) or 1.0
+        hue = abs(float(params.get("hue", 0.05)))
+        lo, hi = (1.0 / sat, sat) if sat >= 1 else (sat, 1.0 / sat)
+        p["saturation"] = rng.uniform(lo, hi)
+        p["hue"] = rng.uniform(-hue, hue)
+    elif aug_type == "shear":
+        sx = abs(float(params.get("shear_x", 0.0)))
+        sy = abs(float(params.get("shear_y", 0.0)))
+        p["shear_x"] = rng.uniform(-sx, sx)
+        p["shear_y"] = rng.uniform(-sy, sy)
     # grayscale / random_erasing: nothing to jitter (erasing is random internally)
     return p
 

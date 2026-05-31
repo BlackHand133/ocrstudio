@@ -16,6 +16,7 @@ import threading
 import cv2
 from fastapi import APIRouter, HTTPException
 
+from modules.export.utils import crop_bounding_box, crop_rotated_box
 from modules.utils import imread_unicode, imwrite_unicode
 from server import schemas
 from server.deps import get_detector, get_workspace_context, get_workspace_manager
@@ -76,6 +77,49 @@ def _detect_with_rotation(detector, path: str, angle: int) -> list:
             pass
 
 
+def _ocr_box(detector, path: str, angle: int, points: list, crop_method: str) -> tuple:
+    """Recognize text inside a single box: rotate to the display frame, crop the
+    region, then run the detector on just that crop. Returns (text, score)."""
+    img = imread_unicode(path)
+    if img is None:
+        return "", None
+    code = _ROTATE_CODES.get(int(angle) % 360)
+    if code is not None:
+        img = cv2.rotate(img, code)
+    crop_fn = crop_rotated_box if crop_method == "rotated" else crop_bounding_box
+    crop = crop_fn(img, points)
+    if crop is None or getattr(crop, "size", 0) == 0 or crop.shape[0] < 2 or crop.shape[1] < 2:
+        return "", None
+    fd, tmp = tempfile.mkstemp(suffix=".png")
+    os.close(fd)
+    try:
+        if not imwrite_unicode(tmp, crop, image_format="png"):
+            return "", None
+        results = detector.detect(tmp)
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+    # Join every recognized segment in reading order (top→bottom, left→right).
+    parts = []
+    best = None
+    for r in results or []:
+        text = (r.get("transcription") or "").strip()
+        if not text:
+            continue
+        pts = r.get("points") or [[0, 0]]
+        ys = [p[1] for p in pts]
+        xs = [p[0] for p in pts]
+        parts.append((min(ys), min(xs), text))
+        score = r.get("score")
+        if score is not None:
+            best = float(score) if best is None else max(best, float(score))
+    parts.sort(key=lambda z: (round(z[0] / 10.0), z[1]))
+    return " ".join(p[2] for p in parts), best
+
+
 @router.post("/{key}", response_model=schemas.DetectResponse)
 async def detect_image(workspace_id: str, key: str) -> schemas.DetectResponse:
     try:
@@ -102,6 +146,40 @@ async def detect_image(workspace_id: str, key: str) -> schemas.DetectResponse:
         raise HTTPException(status_code=500, detail=f"Detection failed: {exc}")
 
     return schemas.DetectResponse(key=key, annotations=_results_to_dicts(results))
+
+
+@router.post("/{key}/box", response_model=schemas.BoxDetectResponse)
+async def detect_box(
+    workspace_id: str, key: str, req: schemas.BoxDetectRequest
+) -> schemas.BoxDetectResponse:
+    """Re-run OCR on a single existing box (e.g. after switching models)."""
+    try:
+        ctx = get_workspace_context(workspace_id)
+    except KeyError:
+        raise HTTPException(404, "Workspace not found")
+    path = image_service.build_index(ctx.source_folder).get(key)
+    if not path or not os.path.exists(path):
+        raise HTTPException(404, "Image not found")
+    if not req.points or len(req.points) < 3:
+        raise HTTPException(400, "Box needs at least 3 points")
+
+    version_data = ctx.wm.load_version(workspace_id, ctx.current_version) or {}
+    angle = int(version_data.get("transforms", {}).get(key, 0) or 0)
+
+    try:
+        detector = get_detector()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=f"OCR engine unavailable: {exc}")
+
+    loop = asyncio.get_event_loop()
+    try:
+        text, score = await loop.run_in_executor(
+            None, _ocr_box, detector, path, angle, req.points, req.crop_method
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Detection failed: {exc}")
+
+    return schemas.BoxDetectResponse(transcription=text, score=score)
 
 
 @router.post("", response_model=schemas.BatchDetectResponse)

@@ -602,6 +602,39 @@ def test_export_blur_and_pixelate_masks(client, tmp_path):
         assert not np.array_equal(noisy[60:90, 110:170], out_region), mode  # region was censored
 
 
+def test_detect_box_reocr(client, tmp_path, monkeypatch):
+    import numpy as np
+
+    import server.deps as deps
+    from modules.utils import imwrite_unicode
+
+    ws_id = client.post("/api/workspaces", json={"name": "box"}).json()["id"]
+    images_dir = tmp_path / "workspaces" / ws_id / "images"
+    imwrite_unicode(str(images_dir / "p.png"), np.full((100, 200, 3), 255, dtype=np.uint8), image_format="png")
+    client.put(
+        f"/api/workspaces/{ws_id}/annotations/p.png",
+        json={
+            "annotations": [
+                {"points": [[10, 10], [100, 10], [100, 40], [10, 40]], "transcription": "old", "difficult": False, "shape": "Quad"}
+            ],
+            "rotation": 0,
+        },
+    )
+
+    class FakeDetector:
+        def detect(self, _path):
+            return [{"points": [[1, 1], [50, 1], [50, 20], [1, 20]], "transcription": "NEW", "score": 0.95}]
+
+    monkeypatch.setattr(deps, "_detector", FakeDetector())
+    r = client.post(
+        f"/api/workspaces/{ws_id}/detect/p.png/box",
+        json={"points": [[10, 10], [100, 10], [100, 40], [10, 40]]},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["transcription"] == "NEW"
+    assert r.json()["score"] == 0.95
+
+
 def test_export_icdar_format(client, tmp_path):
     ws_id = _make_ws_with_image(client, tmp_path)  # page1.png 320x120, quad "กขค"
     job = _export_and_wait(

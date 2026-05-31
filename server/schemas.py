@@ -72,6 +72,16 @@ class DetectResponse(BaseModel):
     annotations: List[Annotation] = Field(default_factory=list)
 
 
+class BoxDetectRequest(BaseModel):
+    points: List[List[float]]
+    crop_method: str = "bbox"  # "bbox" | "rotated"
+
+
+class BoxDetectResponse(BaseModel):
+    transcription: str = ""
+    score: Optional[float] = None
+
+
 class BatchDetectRequest(BaseModel):
     scope: str = "empty"  # "empty" | "all" | "selected"
     keys: Optional[List[str]] = None

@@ -133,6 +133,12 @@ export const api = {
       'POST',
       `/api/workspaces/${encodeURIComponent(ws)}/detect/${encodeURIComponent(key)}`,
     ),
+  detectBox: (ws: string, key: string, points: number[][], cropMethod: 'bbox' | 'rotated' = 'bbox') =>
+    jsend<{ transcription: string; score: number | null }>(
+      'POST',
+      `/api/workspaces/${encodeURIComponent(ws)}/detect/${encodeURIComponent(key)}/box`,
+      { points, crop_method: cropMethod },
+    ),
 
   // ---- batch detect + jobs ----
   detectBatch: (ws: string, body: { scope: 'empty' | 'all' | 'selected'; keys?: string[]; overwrite?: boolean }) =>

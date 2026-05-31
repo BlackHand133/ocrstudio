@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActionIcon,
   Badge,
@@ -24,10 +24,13 @@ import {
   IconForms,
   IconLock,
   IconLockOpen,
+  IconRefresh,
   IconScan,
   IconTrash,
 } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import { useEditor } from '../store/editor';
+import { api } from '../api/client';
 import { copyFromPrevImage, runBatchDetect, runDetect } from '../controller';
 import { isMask, MASK_COLORS } from '../lib/masks';
 import { useT } from '../i18n';
@@ -92,6 +95,7 @@ export function AnnotationPanel() {
 
   const taRefs = useRef<Record<number, HTMLTextAreaElement | null>>({});
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const [reocrIdx, setReocrIdx] = useState<number | null>(null);
 
   // Scroll the selected card into view whenever the selection changes.
   useEffect(() => {
@@ -138,6 +142,28 @@ export function AnnotationPanel() {
   const removeAt = (i: number) => {
     setAnnotations(annotations.filter((_, idx) => idx !== i));
     if (selected === i) select(null);
+  };
+
+  // Re-run OCR on a single box (e.g. after switching the model) and update its text.
+  const reocr = async (i: number) => {
+    const ws = useEditor.getState().workspaceId;
+    const key = useEditor.getState().imageKey;
+    const a = annotations[i];
+    if (!ws || !key || !a) return;
+    setReocrIdx(i);
+    try {
+      const res = await api.detectBox(ws, key, a.points);
+      updateAnnotation(i, { transcription: res.transcription, score: res.score });
+      notifications.show(
+        res.transcription
+          ? { color: 'green', message: t('panel.reocrDone'), autoClose: 1500 }
+          : { color: 'yellow', message: t('panel.reocrEmpty') },
+      );
+    } catch (e) {
+      notifications.show({ color: 'red', title: t('panel.reocr'), message: (e as Error).message });
+    } finally {
+      setReocrIdx(null);
+    }
   };
 
   const unionIdx = (): number[] => {
@@ -302,6 +328,23 @@ export function AnnotationPanel() {
                     )}
                   </Group>
                   <Group gap={2} wrap="nowrap">
+                    {!mask && (
+                      <Tooltip label={t('panel.reocr')} withArrow>
+                        <ActionIcon
+                          size="sm"
+                          variant="subtle"
+                          color="blue"
+                          aria-label={t('panel.reocr')}
+                          loading={reocrIdx === i}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void reocr(i);
+                          }}
+                        >
+                          <IconRefresh size={15} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )}
                     <Tooltip label={mask ? t('panel.toText') : t('panel.toCensor')} withArrow>
                       <ActionIcon
                         size="sm"

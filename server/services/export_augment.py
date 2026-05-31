@@ -7,9 +7,11 @@ so every export format can reuse it.
 
 from __future__ import annotations
 
+import base64
 import random
 from typing import List, Optional
 
+import cv2
 import numpy as np
 
 from modules.utils import sanitize_filename
@@ -132,3 +134,101 @@ def _det_samples(img, normal, runner, do_aug):
     if runner and do_aug:
         for suffix, aug_img, boxes in runner.detection(img, normal):
             yield suffix, aug_img, boxes
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Preview helpers (count + visual gallery) — used by the export modal
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def variants_per_item(aug_config: Optional[dict]) -> int:
+    """Augmented copies emitted per source item (excludes the original).
+
+    combinatorial → one image per augmentation per copy; sequential → one
+    chained image per copy.
+    """
+    if not aug_config:
+        return 0
+    specs = aug_config.get("augmentations", [])
+    if not specs:
+        return 0
+    copies = max(1, int(aug_config.get("copies", 1)))
+    if aug_config.get("mode", "combinatorial") == "sequential":
+        return copies
+    return copies * len(specs)
+
+
+def _draw_boxes(img, boxes) -> np.ndarray:
+    """Outline boxes (lists of [x, y]) on a copy so geometric augments are visible."""
+    if not boxes:
+        return img
+    out = img.copy()
+    for pts in boxes:
+        try:
+            arr = np.array([[int(round(x)), int(round(y))] for x, y in pts], dtype=np.int32)
+        except (TypeError, ValueError):
+            continue
+        cv2.polylines(out, [arr], isClosed=True, color=(0, 200, 0), thickness=2)
+    return out
+
+
+def _encode_thumb(img, max_size: int = 360) -> str:
+    """Downscale + JPEG-encode to a base64 data URI for inline display."""
+    if img is None or getattr(img, "size", 0) == 0:
+        return ""
+    if img.ndim == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    h, w = img.shape[:2]
+    longest = max(h, w)
+    if longest > max_size:
+        scale = max_size / longest
+        img = cv2.resize(
+            img, (max(1, int(w * scale)), max(1, int(h * scale))), interpolation=cv2.INTER_AREA
+        )
+    ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 82])
+    if not ok:
+        return ""
+    return "data:image/jpeg;base64," + base64.b64encode(buf.tobytes()).decode("ascii")
+
+
+def render_aug_samples(img, specs, mode, *, boxes=None, max_size: int = 360) -> List[dict]:
+    """Demonstrate each selected augmentation on one sample image.
+
+    Returns ``[{"label", "image"(data-uri)}]``: the original first, then each
+    augmentation applied once with its configured params, plus the chained
+    ``combined`` result when *mode* is sequential. Uses fixed params (no jitter)
+    so the gallery is a clean one-per-effect comparison.
+    """
+    from modules.augmentation import AugmentationPipeline
+
+    def _boxes_copy():
+        return [list(b) for b in boxes] if boxes else None
+
+    samples = [{"label": "original", "image": _encode_thumb(_draw_boxes(img, boxes), max_size)}]
+    for s in specs:
+        pipe = AugmentationPipeline(mode="combinatorial")
+        pipe.add_augmentation(s["type"], dict(s.get("params", {})))
+        try:
+            results = pipe.apply(img, _boxes_copy())
+        except Exception:  # noqa: BLE001 — one bad aug shouldn't kill the gallery
+            continue
+        if not results:
+            continue
+        aug_img, aug_bb, name = results[0]
+        if aug_img is None:
+            continue
+        shown = _draw_boxes(aug_img, aug_bb) if aug_bb else aug_img
+        samples.append({"label": str(name), "image": _encode_thumb(shown, max_size)})
+    if mode == "sequential" and len(specs) > 1:
+        pipe = AugmentationPipeline(mode="sequential")
+        for s in specs:
+            pipe.add_augmentation(s["type"], dict(s.get("params", {})))
+        try:
+            results = pipe.apply(img, _boxes_copy())
+        except Exception:  # noqa: BLE001
+            results = []
+        if results and results[0][0] is not None:
+            aug_img, aug_bb, _name = results[0]
+            shown = _draw_boxes(aug_img, aug_bb) if aug_bb else aug_img
+            samples.append({"label": "combined", "image": _encode_thumb(shown, max_size)})
+    return samples

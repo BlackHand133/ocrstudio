@@ -42,6 +42,22 @@ export interface SplitPreview {
   unit: string;
   total: number;
   splits: Record<string, number>;
+  // present only when augmentation is enabled — post-augmentation item counts
+  variants_per_item?: number;
+  aug_targets?: string[];
+  aug_splits?: Record<string, number>;
+  aug_total?: number;
+}
+
+export interface AugSample {
+  label: string;
+  image: string; // data:image/jpeg;base64,...
+}
+
+export interface AugPreview {
+  sample_key: string;
+  box_count: number;
+  samples: AugSample[];
 }
 
 async function jget<T>(url: string): Promise<T> {
@@ -164,4 +180,10 @@ export const api = {
     jsend<{ job_id: string }>('POST', `/api/workspaces/${encodeURIComponent(ws)}/export`, params),
   previewSplit: (ws: string, params: ExportParams) =>
     jsend<SplitPreview>('POST', `/api/workspaces/${encodeURIComponent(ws)}/export/preview`, params),
+  previewAugment: (ws: string, params: ExportParams) =>
+    jsend<AugPreview>(
+      'POST',
+      `/api/workspaces/${encodeURIComponent(ws)}/export/augment-preview`,
+      params,
+    ),
 };

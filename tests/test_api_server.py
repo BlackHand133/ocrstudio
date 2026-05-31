@@ -300,6 +300,88 @@ def test_export_with_augmentation(client, tmp_path):
     assert len(lines) == 3
 
 
+def test_augment_preview_gallery(client, tmp_path):
+    """augment-preview returns the original + one inline thumbnail per effect."""
+    ws_id = _make_ws_with_image(client, tmp_path)
+    body = {
+        "kind": "detection",
+        "aug_mode": "combinatorial",
+        "augmentations": [
+            {"type": "blur", "params": {"kernel_size": 5}},
+            {"type": "grayscale", "params": {}},
+        ],
+    }
+    r = client.post(f"/api/workspaces/{ws_id}/export/augment-preview", json=body)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["sample_key"] == "page1.png"
+    assert data["box_count"] == 1
+    assert [s["label"] for s in data["samples"]] == ["original", "blur", "grayscale"]
+    assert all(s["image"].startswith("data:image/jpeg;base64,") for s in data["samples"])
+
+
+def test_augment_preview_sequential_adds_combined(client, tmp_path):
+    ws_id = _make_ws_with_image(client, tmp_path)
+    body = {
+        "kind": "detection",
+        "aug_mode": "sequential",
+        "augmentations": [
+            {"type": "blur", "params": {"kernel_size": 5}},
+            {"type": "grayscale", "params": {}},
+        ],
+    }
+    r = client.post(f"/api/workspaces/{ws_id}/export/augment-preview", json=body)
+    assert r.status_code == 200, r.text
+    labels = [s["label"] for s in r.json()["samples"]]
+    assert labels[0] == "original" and "combined" in labels
+
+
+def test_augment_preview_requires_augs(client, tmp_path):
+    ws_id = _make_ws_with_image(client, tmp_path)
+    r = client.post(
+        f"/api/workspaces/{ws_id}/export/augment-preview",
+        json={"kind": "detection", "augmentations": []},
+    )
+    assert r.status_code == 400
+
+
+def test_preview_split_reports_aug_counts(client, tmp_path):
+    """The split preview folds augmentation into the per-split totals."""
+    ws_id = _make_ws_with_image(client, tmp_path)
+    body = {
+        "kind": "detection",
+        "train": 100,
+        "valid": 0,
+        "test": 0,
+        "augment": True,
+        "aug_mode": "combinatorial",
+        "aug_copies": 2,
+        "augmentations": [
+            {"type": "blur", "params": {"kernel_size": 5}},
+            {"type": "grayscale", "params": {}},
+        ],
+        "aug_targets": ["train"],
+    }
+    r = client.post(f"/api/workspaces/{ws_id}/export/preview", json=body)
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["total"] == 1 and data["splits"]["train"] == 1
+    # 2 copies x 2 specs = 4 variants/item -> train 1 becomes 1 * (1 + 4) = 5
+    assert data["variants_per_item"] == 4
+    assert data["aug_splits"]["train"] == 5
+    assert data["aug_total"] == 5
+
+
+def test_preview_split_no_aug_has_no_aug_fields(client, tmp_path):
+    ws_id = _make_ws_with_image(client, tmp_path)
+    r = client.post(
+        f"/api/workspaces/{ws_id}/export/preview",
+        json={"kind": "detection", "train": 100, "valid": 0, "test": 0},
+    )
+    assert r.status_code == 200, r.text
+    assert "aug_total" not in r.json()
+
+
 def test_export_solid_mask_burned_in(client, tmp_path):
     import cv2
     import numpy as np

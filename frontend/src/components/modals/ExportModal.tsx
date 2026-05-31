@@ -4,19 +4,22 @@ import {
   Button,
   Checkbox,
   Group,
+  Image,
   Modal,
   NumberInput,
   Progress,
   Select,
   SegmentedControl,
+  SimpleGrid,
   Stack,
   Switch,
   Text,
 } from '@mantine/core';
-import { IconDownload } from '@tabler/icons-react';
+import { IconDownload, IconPhoto } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import {
   api,
+  type AugPreview,
   type DatasetFormat,
   type ExportParams,
   type SplitMode,
@@ -76,6 +79,8 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
   const [augMode, setAugMode] = useState<'combinatorial' | 'sequential'>('combinatorial');
   const [augCopies, setAugCopies] = useState<number>(1);
   const [selAugs, setSelAugs] = useState<string[]>(['blur', 'brightness_contrast']);
+  const [augPreview, setAugPreview] = useState<AugPreview | null>(null);
+  const [augBusy, setAugBusy] = useState(false);
 
   const sum = train + valid + test;
 
@@ -119,6 +124,19 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
       setPreview(await api.previewSplit(workspaceId, buildParams()));
     } catch (e) {
       notifications.show({ color: 'red', message: (e as Error).message });
+    }
+  };
+
+  const doAugPreview = async () => {
+    if (!workspaceId || !selAugs.length) return;
+    setAugBusy(true);
+    try {
+      await saveCurrent();
+      setAugPreview(await api.previewAugment(workspaceId, buildParams()));
+    } catch (e) {
+      notifications.show({ color: 'red', message: (e as Error).message });
+    } finally {
+      setAugBusy(false);
     }
   };
 
@@ -260,6 +278,15 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
                   .map(([k, v]) => `${k}: ${v}`)
                   .join(' · ')}{' '}
                 ({preview.total} {preview.unit})
+                {preview.aug_total != null && preview.aug_splits && (
+                  <Text span c="teal.7" fw={500}>
+                    {'  →  '}
+                    {Object.entries(preview.aug_splits)
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join(' · ')}{' '}
+                    ({preview.aug_total} {preview.unit}, {t('exp.afterAug')})
+                  </Text>
+                )}
               </Text>
             )}
           </Group>
@@ -316,11 +343,22 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
         <Switch
           label={t('exp.augment')}
           checked={augment}
-          onChange={(e) => setAugment(e.currentTarget.checked)}
+          onChange={(e) => {
+            setAugment(e.currentTarget.checked);
+            setAugPreview(null);
+            setPreview(null);
+          }}
         />
         {augment && (
           <Stack gap="xs" pl="xs">
-            <Checkbox.Group value={selAugs} onChange={setSelAugs}>
+            <Checkbox.Group
+              value={selAugs}
+              onChange={(v) => {
+                setSelAugs(v);
+                setAugPreview(null);
+                setPreview(null);
+              }}
+            >
               <Group gap="xs">
                 {AUGS.map((a) => (
                   <Checkbox key={a.type} value={a.type} label={a.label} size="xs" />
@@ -331,7 +369,11 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
               <SegmentedControl
                 size="xs"
                 value={augMode}
-                onChange={(v) => setAugMode(v as 'combinatorial' | 'sequential')}
+                onChange={(v) => {
+                  setAugMode(v as 'combinatorial' | 'sequential');
+                  setAugPreview(null);
+                  setPreview(null);
+                }}
                 data={[
                   { label: t('exp.augSeparate'), value: 'combinatorial' },
                   { label: t('exp.augCombined'), value: 'sequential' },
@@ -344,12 +386,59 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
                 min={1}
                 max={10}
                 value={augCopies}
-                onChange={(v) => setAugCopies(Number(v) || 1)}
+                onChange={(v) => {
+                  setAugCopies(Number(v) || 1);
+                  setPreview(null);
+                }}
               />
             </Group>
             <Text size="xs" c="dimmed">
               {t('exp.augNote')}
             </Text>
+
+            <Group gap="xs" align="center">
+              <Button
+                size="compact-xs"
+                variant="light"
+                leftSection={<IconPhoto size={14} />}
+                onClick={doAugPreview}
+                loading={augBusy}
+                disabled={!selAugs.length}
+              >
+                {t('exp.augPreview')}
+              </Button>
+              {augPreview && (
+                <Text size="xs" c="dimmed">
+                  {t('exp.augPreviewHint', {
+                    key: augPreview.sample_key,
+                    n: augPreview.box_count,
+                  })}
+                </Text>
+              )}
+            </Group>
+            {augPreview && (
+              <SimpleGrid cols={3} spacing="xs" verticalSpacing="xs">
+                {augPreview.samples.map((s, i) => (
+                  <Stack key={`${s.label}-${i}`} gap={2} align="center">
+                    <Image
+                      src={s.image}
+                      radius="sm"
+                      fit="contain"
+                      h={88}
+                      style={{
+                        border:
+                          s.label === 'original'
+                            ? '2px solid var(--mantine-color-blue-5)'
+                            : '1px solid var(--mantine-color-gray-3)',
+                      }}
+                    />
+                    <Text size="10px" c={s.label === 'original' ? 'blue' : 'dimmed'} ta="center">
+                      {s.label}
+                    </Text>
+                  </Stack>
+                ))}
+              </SimpleGrid>
+            )}
           </Stack>
         )}
 

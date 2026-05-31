@@ -29,7 +29,12 @@ from modules.export.utils import (
     is_valid_box,
 )
 from modules.utils import imread_unicode, imwrite_unicode, sanitize_annotations, sanitize_filename
-from server.services.export_augment import _det_samples, _make_runner
+from server.services.export_augment import (
+    _det_samples,
+    _make_runner,
+    render_aug_samples,
+    variants_per_item,
+)
 from server.services.export_split import _split
 
 PLACEHOLDER_TEXT = "<no_label>"
@@ -840,6 +845,24 @@ def export_manifest_recognition(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def _with_aug_counts(result: dict, aug_config) -> dict:
+    """Augment a split-count preview with the post-augmentation totals.
+
+    Target splits gain ``variants_per_item`` extra items each (the original is
+    always kept), so the caller can show e.g. ``train 70 → 210``.
+    """
+    vpi = variants_per_item(aug_config)
+    if not vpi:
+        return result
+    targets = set((aug_config or {}).get("target_splits", ["train"]))
+    aug_splits = {s: n * (1 + vpi) if s in targets else n for s, n in result["splits"].items()}
+    result["variants_per_item"] = vpi
+    result["aug_targets"] = sorted(targets)
+    result["aug_splits"] = aug_splits
+    result["aug_total"] = sum(aug_splits.values())
+    return result
+
+
 def preview_split(
     *,
     kind,
@@ -852,14 +875,24 @@ def preview_split(
     counts=None,
     n_bins=3,
     group_by_image=True,
+    aug_config=None,
 ) -> dict:
-    """Return ``{"unit": "...", "total": N, "splits": {...}}`` without writing files."""
+    """Return ``{"unit": "...", "total": N, "splits": {...}}`` without writing files.
+
+    When *aug_config* is given, also returns ``aug_splits`` / ``aug_total`` /
+    ``variants_per_item`` reflecting the post-augmentation item counts.
+    """
     if kind == "detection":
         keys = _eligible_det_keys(source_index, annotations, selected_keys)
         if not keys:
             return {"unit": "images", "total": 0, "splits": {}}
         sr = _det_split(keys, annotations, splits, seed, split_mode, counts, n_bins)
-        return {"unit": "images", "total": len(keys), "splits": {s: len(v) for s, v in sr.items()}}
+        result = {
+            "unit": "images",
+            "total": len(keys),
+            "splits": {s: len(v) for s, v in sr.items()},
+        }
+        return _with_aug_counts(result, aug_config)
     crops, _ = _collect_crops(annotations, source_index, selected_keys)
     if not crops:
         return {"unit": "crops", "total": 0, "splits": {}}
@@ -872,4 +905,29 @@ def preview_split(
         counts=counts,
         n_bins=n_bins,
     )
-    return {"unit": "crops", "total": len(crops), "splits": {s: len(v) for s, v in sr.items()}}
+    result = {"unit": "crops", "total": len(crops), "splits": {s: len(v) for s, v in sr.items()}}
+    return _with_aug_counts(result, aug_config)
+
+
+def pick_augment_preview(
+    *, source_index, annotations, rotations=None, selected_keys=None, specs, mode, max_size=360
+) -> dict:
+    """Render an augmentation gallery from one representative annotated image.
+
+    Picks the eligible image with the most boxes (so geometric augments are
+    obvious), applies each selected augmentation once, and returns inline
+    thumbnails. Raises ``ValueError`` when there is nothing to preview.
+    """
+    if not specs:
+        raise ValueError("Select at least one augmentation to preview.")
+    keys = _eligible_det_keys(source_index, annotations, selected_keys)
+    if not keys:
+        raise ValueError("No annotated image available to preview.")
+    density = _density(keys, annotations)
+    key = max(keys, key=lambda k: density.get(k, 0))
+    img, normal = _prep_det_image(source_index, key, annotations, rotations or {})
+    if img is None:
+        raise ValueError("Could not load the sample image.")
+    boxes = [a["points"] for a in normal]
+    samples = render_aug_samples(img, specs, mode, boxes=boxes, max_size=max_size)
+    return {"sample_key": key, "box_count": len(boxes), "samples": samples}

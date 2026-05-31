@@ -40,6 +40,19 @@ def _safe_folder(folder: str) -> str:
     return folder
 
 
+def _build_aug_config(req: schemas.ExportRequest):
+    """Translate the request's augmentation fields into the engine's config dict
+    (or ``None`` when augmentation is off / nothing selected)."""
+    if not (req.augment and req.augmentations):
+        return None
+    return {
+        "mode": req.aug_mode,
+        "copies": max(1, req.aug_copies),
+        "augmentations": [a.model_dump() for a in req.augmentations],
+        "target_splits": req.aug_targets or ["train"],
+    }
+
+
 @router.post("", response_model=schemas.ExportJobResponse)
 def run_export(workspace_id: str, req: schemas.ExportRequest) -> schemas.ExportJobResponse:
     if req.kind not in ("detection", "recognition"):
@@ -84,14 +97,7 @@ def run_export(workspace_id: str, req: schemas.ExportRequest) -> schemas.ExportJ
     )
     splits = {"train": req.train, "test": req.test, "valid": req.valid}
 
-    aug_config = None
-    if req.augment and req.augmentations:
-        aug_config = {
-            "mode": req.aug_mode,
-            "copies": max(1, req.aug_copies),
-            "augmentations": [a.model_dump() for a in req.augmentations],
-            "target_splits": req.aug_targets or ["train"],
-        }
+    aug_config = _build_aug_config(req)
     counts = {"train": req.train_count, "test": req.test_count, "valid": req.valid_count}
 
     job_id = jobs.create("export")
@@ -186,9 +192,38 @@ def preview_export(workspace_id: str, req: schemas.ExportRequest):
             counts=counts,
             n_bins=req.n_bins,
             group_by_image=req.group_by_image,
+            aug_config=_build_aug_config(req),
         )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(400, f"Preview failed: {exc}")
+
+
+@router.post("/augment-preview")
+def augment_preview(workspace_id: str, req: schemas.ExportRequest):
+    """Render a small gallery showing each selected augmentation on one real
+    sample image — original first, then one image per effect. No files written."""
+    try:
+        ctx = get_workspace_context(workspace_id)
+    except KeyError:
+        raise HTTPException(404, "Workspace not found")
+    version_data = ctx.wm.load_version(workspace_id, ctx.current_version) or {}
+    annotations = version_data.get("annotations", {})
+    rotations = version_data.get("transforms", {})
+    source_index = image_service.build_index(ctx.source_folder)
+    selected = set(req.selected_keys) if req.selected_keys is not None else None
+    try:
+        return export_service.pick_augment_preview(
+            source_index=source_index,
+            annotations=annotations,
+            rotations=rotations,
+            selected_keys=selected,
+            specs=[a.model_dump() for a in req.augmentations],
+            mode=req.aug_mode,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(400, f"Augment preview failed: {exc}")
 
 
 @router.get("/{folder}/download")

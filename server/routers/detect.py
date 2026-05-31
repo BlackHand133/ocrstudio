@@ -90,6 +90,19 @@ def _ocr_box(detector, path: str, angle: int, points: list, crop_method: str) ->
     crop = crop_fn(img, points)
     if crop is None or getattr(crop, "size", 0) == 0 or crop.shape[0] < 2 or crop.shape[1] < 2:
         return "", None
+    # The detector expects text as a region *inside* a larger image, so a tight
+    # crop usually yields zero detections. Upscale small crops and add a replicate
+    # margin so detection (then recognition) can find the line.
+    h, w = crop.shape[:2]
+    longest = max(h, w)
+    if longest < 320:
+        s = 320.0 / longest
+        crop = cv2.resize(
+            crop, (max(1, int(w * s)), max(1, int(h * s))), interpolation=cv2.INTER_CUBIC
+        )
+        h, w = crop.shape[:2]
+    pad = max(24, int(0.4 * max(h, w)))
+    crop = cv2.copyMakeBorder(crop, pad, pad, pad, pad, cv2.BORDER_REPLICATE)
     fd, tmp = tempfile.mkstemp(suffix=".png")
     os.close(fd)
     try:

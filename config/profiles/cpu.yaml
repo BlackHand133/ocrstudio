@@ -34,6 +34,6 @@ paddleocr:
   # text_rec_score_thresh: 0.0    # Score threshold
 
   # ===== CPU Optimization =====
-  enable_mkldnn: true             # MKL-DNN acceleration
+  enable_mkldnn: false            # off: PaddlePaddle 3.x oneDNN+PIR crashes on detection
   mkldnn_cache_capacity: 10
   cpu_threads: 8

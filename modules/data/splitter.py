@@ -142,8 +142,15 @@ class DataSplitter:
             idx += n_test
         
         if valid_pct > 0:
-            result['valid'] = shuffled[idx:]
-        
+            result['valid'] = shuffled[idx:idx + n_valid]
+            idx += n_valid
+
+        # Don't silently drop the rounding / sum<100 remainder: hand any leftover
+        # to the last non-empty split (matches the UI's "remainder -> last split").
+        if idx < len(shuffled) and result:
+            last_key = list(result.keys())[-1]
+            result[last_key] = result[last_key] + shuffled[idx:]
+
         return result
     
     def split_by_count(

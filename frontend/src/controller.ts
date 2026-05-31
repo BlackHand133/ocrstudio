@@ -92,6 +92,7 @@ export async function reloadCurrentImage(): Promise<void> {
   const { workspaceId, imageKey } = useEditor.getState();
   if (!workspaceId || !imageKey) return;
   const data = await api.getAnnotations(workspaceId, imageKey);
+  if (useEditor.getState().imageKey !== imageKey) return; // user navigated during fetch
   useEditor.getState().loadImage(imageKey, data.annotations, data.rotation);
 }
 
@@ -190,7 +191,7 @@ export async function switchToVersion(name: string): Promise<void> {
 }
 
 export async function runDetect(): Promise<void> {
-  const { workspaceId, imageKey, annotations } = useEditor.getState();
+  const { workspaceId, imageKey } = useEditor.getState();
   if (!workspaceId || !imageKey) return;
   const id = notifications.show({
     loading: true,
@@ -200,7 +201,12 @@ export async function runDetect(): Promise<void> {
   });
   try {
     const res = await api.detect(workspaceId, imageKey);
-    useEditor.getState().setAnnotations([...annotations, ...res.annotations]);
+    // Re-read fresh state after the await: only merge if the user is still on
+    // the same image, and append to the *current* boxes (not a stale snapshot).
+    const st = useEditor.getState();
+    if (st.imageKey === imageKey) {
+      st.setAnnotations([...st.annotations, ...res.annotations]);
+    }
     notifications.update({
       id,
       loading: false,

@@ -90,14 +90,27 @@ class _AugRunner:
                         yield f"{sanitize_filename(name)}{tag}", aug_img, aug_bb
 
     def detection(self, img, normal):
-        """Yield (suffix, aug_image, boxes) — boxes are ann dicts with clamped points."""
+        """Yield (suffix, aug_image, boxes) — boxes are ann dicts with clamped points.
+
+        Boxes that a geometric augment pushed (almost) entirely out of frame
+        collapse to ~zero area after clamping; drop those so no degenerate box
+        lands in the labels.
+        """
         pts_list = [a["points"] for a in normal]
         for name, aug_img, aug_bb in self._gen(img, pts_list):
             if aug_img is None or not aug_bb:
                 continue
             h, w = aug_img.shape[:2]
-            boxes = [{**orig, "points": _clip_box(pts, w, h)} for orig, pts in zip(normal, aug_bb)]
-            yield name, aug_img, boxes
+            boxes = []
+            for orig, pts in zip(normal, aug_bb):
+                clamped = _clip_box(pts, w, h)
+                xs = [p[0] for p in clamped]
+                ys = [p[1] for p in clamped]
+                if max(xs) - min(xs) < 1 or max(ys) - min(ys) < 1:
+                    continue
+                boxes.append({**orig, "points": clamped})
+            if boxes:
+                yield name, aug_img, boxes
 
     def recognition(self, crop):
         """Yield (suffix, aug_crop)."""

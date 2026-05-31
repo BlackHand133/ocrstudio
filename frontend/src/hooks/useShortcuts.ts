@@ -70,8 +70,9 @@ export function useShortcuts() {
       }
       if (ctrl) return; // leave other Ctrl combos to the browser
 
-      // ---- delete ----
-      if (e.key === 'Delete' || e.key === 'Backspace') {
+      // ---- delete ---- (Delete only; Backspace is a footgun after blurring a
+      // transcription field — it would silently delete the selected box)
+      if (e.key === 'Delete') {
         e.preventDefault();
         st.deleteSelected();
         return;

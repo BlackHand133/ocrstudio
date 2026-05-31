@@ -119,13 +119,18 @@ export function CanvasStage() {
   }, [tool, imageKey]);
 
   const finishPolygon = () => {
-    if (polyPoints.length >= 3) {
-      addAnnotation({
-        points: polyPoints,
-        transcription: '',
-        difficult: false,
-        shape: 'Polygon',
-      });
+    // A double-click closes the polygon but also adds a duplicate final vertex
+    // (two mousedowns at the same spot) — drop trailing duplicate(s).
+    let pts = polyPoints;
+    while (
+      pts.length >= 2 &&
+      pts[pts.length - 1][0] === pts[pts.length - 2][0] &&
+      pts[pts.length - 1][1] === pts[pts.length - 2][1]
+    ) {
+      pts = pts.slice(0, -1);
+    }
+    if (pts.length >= 3) {
+      addAnnotation({ points: pts, transcription: '', difficult: false, shape: 'Polygon' });
       if (!stickyTool) setTool('select');
     }
     setPolyPoints([]);
@@ -380,7 +385,14 @@ export function CanvasStage() {
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
-        onMouseLeave={() => setCursor(null)}
+        onMouseLeave={() => {
+          setCursor(null);
+          if (marquee) {
+            // mouse released outside the stage — cancel marquee + restore pan
+            setMarquee(null);
+            stageRef.current?.draggable(tool === 'select');
+          }
+        }}
         onDblClick={onDblClick}
         onDragEnd={onStageDragEnd}
       >

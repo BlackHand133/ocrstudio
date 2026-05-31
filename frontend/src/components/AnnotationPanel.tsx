@@ -153,6 +153,7 @@ export function AnnotationPanel() {
     setReocrIdx(i);
     try {
       const res = await api.detectBox(ws, key, a.points);
+      if (useEditor.getState().imageKey !== key) return; // navigated away during OCR
       updateAnnotation(i, { transcription: res.transcription, score: res.score });
       notifications.show(
         res.transcription

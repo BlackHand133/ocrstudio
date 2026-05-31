@@ -723,6 +723,25 @@ def test_export_icdar_recognition_rejected(client, tmp_path):
     assert r.status_code == 400
 
 
+def test_export_split_no_item_dropped(client, tmp_path):
+    import numpy as np
+
+    from modules.utils import imwrite_unicode
+
+    ws_id = client.post("/api/workspaces", json={"name": "nodrop"}).json()["id"]
+    images_dir = tmp_path / "workspaces" / ws_id / "images"
+    box = {"points": [[5, 5], [50, 5], [50, 30], [5, 30]], "transcription": "x", "difficult": False, "shape": "Quad"}
+    for i in range(10):
+        imwrite_unicode(str(images_dir / f"i{i}.png"), np.full((60, 120, 3), 255, dtype=np.uint8), image_format="png")
+        client.put(f"/api/workspaces/{ws_id}/annotations/i{i}.png", json={"annotations": [box], "rotation": 0})
+    # percentages sum to 80 with valid=0 — the 2 leftover images must NOT vanish
+    job = _export_and_wait(
+        client, ws_id, {"kind": "detection", "train": 70, "valid": 0, "test": 10, "seed": 1}
+    )
+    assert job["status"] == "done", job
+    assert job["result"]["total"] == 10  # no image silently dropped
+
+
 def test_export_split_by_count(client, tmp_path):
     import numpy as np
 

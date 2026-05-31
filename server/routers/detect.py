@@ -87,7 +87,9 @@ def _ocr_box(detector, path: str, angle: int, points: list, crop_method: str) ->
     if code is not None:
         img = cv2.rotate(img, code)
     crop_fn = crop_rotated_box if crop_method == "rotated" else crop_bounding_box
-    crop = crop_fn(img, points)
+    # auto_detect=False: the box is already in display orientation (stored rotation
+    # applied above); don't let the crop helper re-rotate it heuristically.
+    crop = crop_fn(img, points, auto_detect=False)
     if crop is None or getattr(crop, "size", 0) == 0 or crop.shape[0] < 2 or crop.shape[1] < 2:
         return "", None
     # The detector expects text as a region *inside* a larger image, so a tight

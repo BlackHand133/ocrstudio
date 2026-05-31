@@ -359,7 +359,7 @@ class AugmentationPipeline:
         
         # Geometric (ต้องปรับ bboxes)
         if aug_type == 'rotation':
-            return self.augmentor.rotate_image(img, params['angle'], bboxes)
+            return self.augmentor.rotate_image(img, params.get('angle', 0), bboxes)
         
         elif aug_type == 'shear':
             return self.augmentor.shear_image(

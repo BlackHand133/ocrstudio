@@ -55,7 +55,7 @@ Data persists in mounted host folders: `./workspaces`, `./models`, `./data`, `./
 | **Auto-detection** | PaddleOCR text detection + recognition — single image or **batch** with live progress |
 | **Models** | Official PaddleOCR (per-language) or custom PaddleOCR **3.x** inference models |
 | **Workspaces** | Multi-workspace, JSON version control (create / switch / delete) |
-| **Export** | **Selectable formats** (PaddleOCR · ICDAR-2015 · COCO · YOLO · CSV/JSONL); split by **percentage / fixed count / stratified** with a live **preview**, image-grouped recognition split (no leakage); PNG/JPG, mask blackout, rotation-aware, **auto text-orientation**, **augmentation** with randomized copies; ZIP download — background job |
+| **Export** | **Step-by-step wizard** (format → split → augment → review). **Selectable formats** (PaddleOCR · ICDAR-2015 · COCO · YOLO · CSV/JSONL); split by **percentage / fixed count / stratified** with a live split bar (incl. post-augment totals), image-grouped recognition split (no leakage); PNG/JPG, mask blackout, rotation-aware, **auto text-orientation**; **augmentation** with **per-effect adjustable parameters**, randomized copies, and a **zoomable preview gallery** (see every effect on a real sample before exporting); ZIP download — background job |
 | **Image handling** | Upload or mounted folder, virtualized list + thumbnails (1000s of images), search/filter, rotation 0/90/180/270, relink-missing |
 | **UX** | Light/dark theme, Thai/English UI, auto-save + unsaved-changes guard |
 | **Ops** | CPU + NVIDIA GPU images, container healthcheck, optional HTTP Basic-auth gate |
@@ -120,8 +120,8 @@ to the desktop app:
 
 ### Export formats
 
-Pick a target format in the Export dialog. All share the same train/val/test split,
-PNG/JPG output, censor-mask burn-in and rotation handling:
+Pick a target format in the Export **wizard** (step 1). All share the same
+train/val/test split, PNG/JPG output, censor-mask burn-in and rotation handling:
 
 | Format | Kind | Output |
 |---|---|---|
@@ -131,7 +131,12 @@ PNG/JPG output, censor-mask burn-in and rotation handling:
 | **YOLO** | det | `images/<split>/` + `labels/<split>/*.txt` (`0 cx cy w h` normalized) + `data.yaml` |
 | **CSV / JSONL** | det + rec | per-split manifest (`image,text` · `{image,width,height,boxes}`) |
 
-ICDAR / COCO / YOLO are detection-only; augmentation applies to the PaddleOCR format.
+ICDAR / COCO / YOLO are detection-only. **Augmentation** — blur, noise,
+brightness/contrast, sharpen, rotate, perspective, color, shear, random-erase,
+each with adjustable parameters — applies to **every detection format** and to
+recognition crops, and is added only to the target split(s). Preview each effect
+(or all at once) on a real sample, zoom in, and flip between sample images before
+exporting.
 
 ---
 

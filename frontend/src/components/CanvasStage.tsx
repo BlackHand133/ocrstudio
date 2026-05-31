@@ -2,22 +2,14 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { Stage, Layer, Image as KonvaImage, Line, Circle, Rect, Text as KonvaText } from 'react-konva';
 import useImage from 'use-image';
 import type Konva from 'konva';
-import { ActionIcon, Divider, Group, Paper, Text, Center, Loader } from '@mantine/core';
-import {
-  IconZoomIn,
-  IconZoomOut,
-  IconAspectRatio,
-  IconRotate,
-  IconRotateClockwise,
-  IconEye,
-  IconEyeOff,
-  IconZoomScan,
-} from '@tabler/icons-react';
+import { Text, Center, Loader } from '@mantine/core';
 import { useEditor } from '../store/editor';
 import { api } from '../api/client';
 import { saveCurrent } from '../controller';
 import { isMask, hexToRgba } from '../lib/masks';
 import { normRect, boxIntersectsRect } from '../lib/select';
+import { Loupe } from './canvas/Loupe';
+import { CanvasToolbar } from './canvas/CanvasToolbar';
 import { useT } from '../i18n';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -581,52 +573,16 @@ export function CanvasStage() {
       </Stage>
 
       {/* overlay controls */}
-      <Paper
-        withBorder
-        shadow="sm"
-        radius="md"
-        p={4}
-        style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 6 }}
-      >
-        <Group gap={4}>
-          <ActionIcon variant="subtle" onClick={() => rotate(-1)} title={t('canvas.rotateLeft')}>
-            <IconRotate size={18} />
-          </ActionIcon>
-          <ActionIcon variant="subtle" onClick={() => rotate(1)} title={t('canvas.rotateRight')}>
-            <IconRotateClockwise size={18} />
-          </ActionIcon>
-          <Divider orientation="vertical" />
-          <ActionIcon variant="subtle" onClick={() => zoomBy(1.2)} title={t('canvas.zoomIn')}>
-            <IconZoomIn size={18} />
-          </ActionIcon>
-          <ActionIcon variant="subtle" onClick={() => zoomBy(1 / 1.2)} title={t('canvas.zoomOut')}>
-            <IconZoomOut size={18} />
-          </ActionIcon>
-          <ActionIcon variant="subtle" onClick={fit} title={t('canvas.fit')}>
-            <IconAspectRatio size={18} />
-          </ActionIcon>
-          <Divider orientation="vertical" />
-          <ActionIcon
-            variant={maskPreview ? 'filled' : 'subtle'}
-            color="dark"
-            onClick={toggleMaskPreview}
-            title={t('canvas.previewCensor')}
-          >
-            {maskPreview ? <IconEyeOff size={18} /> : <IconEye size={18} />}
-          </ActionIcon>
-          <ActionIcon
-            variant={loupe ? 'filled' : 'subtle'}
-            color="indigo"
-            onClick={() => setLoupe((v) => !v)}
-            title={t('canvas.loupe')}
-          >
-            <IconZoomScan size={18} />
-          </ActionIcon>
-          <Text size="xs" c="dimmed" w={42} ta="center">
-            {Math.round(view.scale * 100)}%
-          </Text>
-        </Group>
-      </Paper>
+      <CanvasToolbar
+        scale={view.scale}
+        maskPreview={maskPreview}
+        loupe={loupe}
+        onRotate={rotate}
+        onZoom={zoomBy}
+        onFit={fit}
+        onToggleMaskPreview={toggleMaskPreview}
+        onToggleLoupe={() => setLoupe((v) => !v)}
+      />
 
       {img && (
         <Text
@@ -639,38 +595,7 @@ export function CanvasStage() {
       )}
 
       {/* magnifier loupe — follows the cursor while a draw tool is active */}
-      {loupe && cursor && tool !== 'select' && img && (
-        <div
-          style={{
-            position: 'absolute',
-            right: 12,
-            top: 12,
-            zIndex: 6,
-            width: 150,
-            height: 150,
-            borderRadius: 8,
-            overflow: 'hidden',
-            border: '2px solid #adb5bd',
-            boxShadow: '0 1px 6px rgba(0,0,0,0.25)',
-            background: '#fff',
-            pointerEvents: 'none',
-          }}
-        >
-          <Stage width={150} height={150}>
-            <Layer>
-              <KonvaImage
-                image={img}
-                scaleX={5}
-                scaleY={5}
-                x={75 - cursor.x * 5}
-                y={75 - cursor.y * 5}
-              />
-              <Line points={[67, 75, 83, 75]} stroke="#fa5252" strokeWidth={1} listening={false} />
-              <Line points={[75, 67, 75, 83]} stroke="#fa5252" strokeWidth={1} listening={false} />
-            </Layer>
-          </Stage>
-        </div>
-      )}
+      {loupe && cursor && tool !== 'select' && img && <Loupe img={img} cursor={cursor} />}
       </>
       )}
     </div>

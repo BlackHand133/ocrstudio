@@ -157,6 +157,13 @@ output_rec/
 exports/
 logs/
 
+# Image datasets / samples — REAL data, may contain PII. Never commit.
+ซองยา-up/
+ซองยา-test-unseen/
+ซองยา*/
+*-dataset/
+sample-images/
+
 # Temporary files
 temp/
 tmp/
@@ -185,11 +192,10 @@ logs/
 cache/
 *.cache
 
-# ===== Models (Use Git LFS for large models) =====
-# Downloaded PaddleOCR models (these should be in LFS if committed)
-# models/*.pdmodel
-# models/*.pdiparams
-# models/*.nb
+# ===== Models =====
+# PaddleOCR weights are provided at runtime via the ./models volume mount (or
+# auto-downloaded on first use) — never bake them into the repo or the image.
+models/
 
 # ===== Documentation Build =====
 docs/_build/

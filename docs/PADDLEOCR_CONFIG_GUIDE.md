@@ -377,7 +377,6 @@ def on_ocr_settings_changed(self):
 - [PaddleOCR Official Docs](https://www.paddleocr.ai/main/en/version3.x/pipeline_usage/OCR.html)
 - [PaddleOCR Model Zoo](https://github.com/PaddlePaddle/PaddleOCR/blob/main/doc/doc_en/models_list_en.md)
 - [PaddleOCR Training Guide](https://github.com/PaddlePaddle/PaddleOCR/blob/main/doc/doc_en/training_en.md)
-- Project: [README_RESTRUCTURE.md](../README_RESTRUCTURE.md)
 
 ---
 

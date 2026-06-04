@@ -96,7 +96,8 @@ if __name__ == '__main__':
     print("Annotation Recovery Tool")
     print("=" * 60)
 
-    workspace_path = Path("d:/OneDrive - Chiang Mai University/work/Ajan/workspaces/testmedicine")
+    # Pass a workspace path as the first arg, else default to a local workspace.
+    workspace_path = Path(sys.argv[1] if len(sys.argv) > 1 else "workspaces/testmedicine")
 
     if not workspace_path.exists():
         print(f"[X] Workspace not found: {workspace_path}")

@@ -1,20 +1,19 @@
-# OCR Studio — Web (single container)
+# OCR Studio — Web (prebuilt image, no local build)
 #
-#   docker compose -f docker-compose.web.yml up --build
+#   docker compose -f docker-compose.web.pull.yml up -d
 #   open http://localhost:8000
 #
-# Data lives in mounted host folders and survives container restarts.
+# Pulls the published CPU image from GHCR instead of building paddle wheels
+# locally. Copy .env.example -> .env first to set the port / optional login.
+# Data lives in the mounted host folders below and survives restarts.
 
 services:
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile.web
-      target: runtime-web
-    image: ocrstudio-web:latest
+    image: ghcr.io/blackhand133/ocrstudio:latest
     container_name: ocrstudio-web
+    pull_policy: always
     ports:
-      # Host port configurable (avoid clashes): WEB_PORT=8088 docker compose ... up
+      # Host port configurable: WEB_PORT=8088 docker compose ... up
       - "${WEB_PORT:-8000}:8000"
     environment:
       # Set BOTH to require an HTTP Basic-auth login (leave empty to disable).
@@ -26,11 +25,8 @@ services:
       - ./workspaces:/app/workspaces       # annotation data (persistent)
       - ./models:/app/models               # OCR model weights (persistent)
       - ./data:/app/data                   # app state json
-      - ./config:/app/config               # editable YAML config (settings persist)
+      - ./config:/app/config               # editable YAML config
       - ./output_det:/app/output_det       # exported detection datasets
       - ./output_rec:/app/output_rec       # exported recognition datasets
-      # To annotate an existing host folder without uploading, mount it and
-      # create a workspace with that path, e.g.:
-      # - ./images:/data/images:ro
     restart: unless-stopped
     shm_size: "1g"                         # PaddleOCR likes more shared memory

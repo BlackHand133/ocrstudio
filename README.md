@@ -20,25 +20,50 @@ container**: no noVNC, no X server — just open one URL.
 
 ## Quick start (Docker — recommended)
 
-```bash
-git clone https://github.com/BlackHand133/ocrstudio.git
-cd ocrstudio
+### Option A — prebuilt image (fastest, no build)
 
-docker compose -f docker-compose.web.yml up --build
+Pull the published CPU image and run — no source build, no waiting on paddle wheels:
+
+```bash
+git clone https://github.com/BlackHand133/ocrstudio.git && cd ocrstudio
+cp .env.example .env          # optional — set WEB_PORT, or OCR_USER/OCR_PASS for a login
+docker compose -f docker-compose.web.pull.yml up -d
 # open http://localhost:8000
 ```
 
-Pick another host port if 8000 is taken:
+Don't want to clone? Run it directly (creates data folders in the current directory):
 
 ```bash
-WEB_PORT=8088 docker compose -f docker-compose.web.yml up --build   # http://localhost:8088
+docker run -d --name ocrstudio -p 8000:8000 \
+  -v "$PWD/workspaces:/app/workspaces" -v "$PWD/models:/app/models" \
+  -v "$PWD/data:/app/data" -v "$PWD/config:/app/config" \
+  -v "$PWD/output_det:/app/output_det" -v "$PWD/output_rec:/app/output_rec" \
+  ghcr.io/blackhand133/ocrstudio:latest
 ```
 
-**GPU (CUDA 11.8 + PaddlePaddle-GPU)** — needs the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html):
+### Option B — build from source
+
+```bash
+git clone https://github.com/BlackHand133/ocrstudio.git && cd ocrstudio
+docker compose -f docker-compose.web.yml up --build     # http://localhost:8000
+```
+
+Pick another host port if 8000 is taken (either option):
+
+```bash
+WEB_PORT=8088 docker compose -f docker-compose.web.pull.yml up -d   # http://localhost:8088
+```
+
+**GPU (CUDA 11.8 + PaddlePaddle-GPU)** — build from source; needs the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html):
 
 ```bash
 docker compose -f docker-compose.web.yml -f docker-compose.web.gpu.yml up --build
 ```
+
+**Share with others / remote access.** The app is **single-user** (no per-user login) — concurrent
+editors share one dataset. To let teammates on your LAN reach it, expose the port and — recommended —
+enable the built-in login by setting `OCR_USER` + `OCR_PASS` in `.env`. For internet access, put it
+behind a tunnel or reverse proxy with HTTPS.
 
 Data persists in mounted host folders: `./workspaces`, `./models`, `./data`, `./output_det`,
 `./output_rec`. The first OCR call downloads PaddleOCR weights (or mount pre-downloaded weights into

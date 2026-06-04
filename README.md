@@ -5,6 +5,8 @@
 [![React 18 + TS](https://img.shields.io/badge/React_18-TypeScript-61dafb.svg)](https://react.dev/)
 [![PaddleOCR 3.x](https://img.shields.io/badge/PaddleOCR-3.x-green.svg)](https://github.com/PaddlePaddle/PaddleOCR)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Release](https://img.shields.io/github/v/release/BlackHand133/ocrstudio?label=release&color=brightgreen)](https://github.com/BlackHand133/ocrstudio/releases)
+[![Container image](https://img.shields.io/badge/ghcr.io-ocrstudio-2496ED?logo=docker&logoColor=white)](https://github.com/BlackHand133/ocrstudio/pkgs/container/ocrstudio)
 
 A **browser-based OCR annotation tool** for building high-quality text **detection** and
 **recognition** datasets — with first-class **Thai** support. It pairs a FastAPI backend

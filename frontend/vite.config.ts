@@ -1,14 +1,19 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Dev: proxy /api to the FastAPI backend on :8000.
+// Dev: proxy /api to the FastAPI backend. Default :8000, override with
+// VITE_API_TARGET (e.g. in frontend/.env.local) when that port is taken —
+// e.g. VITE_API_TARGET=http://localhost:8001.
 // Prod: the SPA is built to dist/ and served by FastAPI itself (same origin).
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, '.', 'VITE_');
+  const apiTarget = env.VITE_API_TARGET || 'http://localhost:8000';
+  return {
   plugins: [react()],
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:8000',
+      '/api': apiTarget,
     },
   },
   build: {
@@ -31,4 +36,5 @@ export default defineConfig({
       },
     },
   },
+  };
 });

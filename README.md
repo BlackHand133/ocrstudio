@@ -169,20 +169,38 @@ exporting.
 
 ## Local development
 
-Two processes. Backend (any env with the project + server deps):
+Develop here first (hot-reload), then ship via the Docker image. Two processes:
+
+**1. Backend** — FastAPI with auto-reload (any env with the project + server deps):
 
 ```bash
 pip install -r requirements.txt -r requirements-server.txt
-uvicorn server.main:app --reload          # http://localhost:8000
+uvicorn server.main:app --reload --port 8000      # http://localhost:8000
 ```
 
-Frontend (Vite dev server, proxies `/api` → `:8000`):
+**2. Frontend** — Vite dev server with HMR; **open this URL while developing**:
 
 ```bash
-cd frontend
-npm install
-npm run dev                                # http://localhost:5173
+cd frontend && npm install
+npm run dev                                        # http://localhost:5173
 ```
+
+The Vite `/api` proxy targets `http://localhost:8000` by default. If that port is
+taken, run the backend on another port and point the proxy at it via
+`frontend/.env.local` (gitignored):
+
+```bash
+# frontend/.env.local
+VITE_API_TARGET=http://localhost:8001
+```
+
+```bash
+uvicorn server.main:app --reload --port 8001       # backend on 8001
+```
+
+> Edit at **:5173** (instant HMR). The single-port `:8000`/`:8001` view serves the
+> built SPA from `server/static` — rebuild it (`cd frontend && npm run build` then
+> copy `dist/` → `server/static/`) to refresh that view.
 
 ---
 

@@ -57,7 +57,7 @@ pip install -r requirements.txt -r requirements-server.txt
 uvicorn server.main:app --reload          # http://localhost:8000
 ```
 
-Frontend (Vite dev server, proxies /api → :8000):
+Frontend (Vite dev server with HMR, proxies /api → :8000):
 
 ```bash
 cd frontend
@@ -65,7 +65,18 @@ npm install
 npm run dev                                # http://localhost:5173
 ```
 
-Open **http://localhost:5173** during development.
+Open **http://localhost:5173** during development (edit → instant HMR).
+
+**Port already in use?** Run the backend on a free port and point the Vite proxy
+at it via `frontend/.env.local` (gitignored):
+
+```bash
+# frontend/.env.local
+VITE_API_TARGET=http://localhost:8001
+```
+```bash
+uvicorn server.main:app --reload --port 8001
+```
 
 ## Run locally, production-like (no Docker)
 

@@ -1,5 +1,6 @@
 import {
   ActionIcon,
+  Burger,
   Button,
   Group,
   SegmentedControl,
@@ -31,7 +32,16 @@ import { queryClient } from '../api/queryClient';
 import { saveCurrent } from '../controller';
 import { useI18n, useT } from '../i18n';
 
-export function Header() {
+interface HeaderProps {
+  /** Image-list drawer state — only rendered below the navbar breakpoint. */
+  navOpened: boolean;
+  /** Annotation-panel drawer state — only rendered below the aside breakpoint. */
+  asideOpened: boolean;
+  onToggleNav: () => void;
+  onToggleAside: () => void;
+}
+
+export function Header({ navOpened, asideOpened, onToggleNav, onToggleAside }: HeaderProps) {
   const t = useT();
   const lang = useI18n((s) => s.lang);
   const setLang = useI18n((s) => s.setLang);
@@ -84,14 +94,27 @@ export function Header() {
       <ExportModal opened={exportOpened} onClose={closeExport} />
       <SettingsModal opened={settingsOpened} onClose={closeSettings} />
       <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-        <Group gap="sm" wrap="nowrap">
-          <Text fw={700}>OCR Studio</Text>
+        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+          <Burger
+            opened={navOpened}
+            onClick={onToggleNav}
+            hiddenFrom="sm"
+            size="sm"
+            aria-label={t('hdr.toggleList')}
+          />
+          {/* The product name is the first thing to go when space is tight —
+              the workspace name is what tells the user where they are. */}
+          <Text fw={700} visibleFrom="xs">
+            OCR Studio
+          </Text>
           {ws && (
             <>
-              <Text>·</Text>
-              <Text fw={500}>{ws.name}</Text>
+              <Text visibleFrom="xs">·</Text>
+              <Text fw={500} truncate="end" style={{ minWidth: 0 }}>
+                {ws.name}
+              </Text>
               <VersionMenu workspaceId={workspaceId!} current={ws.current_version} />
-              <Text size="xs" c="dimmed" visibleFrom="sm">
+              <Text size="xs" c="dimmed" visibleFrom="md">
                 {t('hdr.annotated', { a: ws.annotated_count, b: ws.image_count })}
               </Text>
             </>
@@ -101,6 +124,8 @@ export function Header() {
         <Group gap="xs" wrap="nowrap">
           <SegmentedControl
             size="xs"
+            aria-label={t('hdr.uiLanguage')}
+            visibleFrom="sm"
             value={lang}
             onChange={(v) => setLang(v as 'en' | 'th')}
             data={[
@@ -108,9 +133,12 @@ export function Header() {
               { label: 'ไทย', value: 'th' },
             ]}
           />
+          {/* Tooltips are hover-only affordances — icon-only buttons still need
+              an aria-label or they are announced as just "button". */}
           <Tooltip label={t('hdr.theme')}>
             <ActionIcon
               variant="default"
+              aria-label={t('hdr.theme')}
               onClick={() => setColorScheme(computed === 'dark' ? 'light' : 'dark')}
             >
               {computed === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
@@ -118,12 +146,22 @@ export function Header() {
           </Tooltip>
 
           <Tooltip label={t('hdr.undo')}>
-            <ActionIcon variant="default" disabled={!canUndo} onClick={undo}>
+            <ActionIcon
+              variant="default"
+              aria-label={t('hdr.undo')}
+              disabled={!canUndo}
+              onClick={undo}
+            >
               <IconArrowBackUp size={18} />
             </ActionIcon>
           </Tooltip>
           <Tooltip label={t('hdr.redo')}>
-            <ActionIcon variant="default" disabled={!canRedo} onClick={redo}>
+            <ActionIcon
+              variant="default"
+              aria-label={t('hdr.redo')}
+              disabled={!canRedo}
+              onClick={redo}
+            >
               <IconArrowForwardUp size={18} />
             </ActionIcon>
           </Tooltip>
@@ -141,35 +179,67 @@ export function Header() {
             />
           )}
 
+          {/* Below sm the labelled buttons become icon-only so the row still
+              fits; the aria-label carries the meaning either way. */}
           <Button
             size="xs"
             variant="default"
             leftSection={<IconFileExport size={16} />}
             onClick={openExport}
+            visibleFrom="sm"
           >
             {t('hdr.export')}
           </Button>
+          <Tooltip label={t('hdr.export')}>
+            <ActionIcon
+              variant="default"
+              aria-label={t('hdr.export')}
+              onClick={openExport}
+              hiddenFrom="sm"
+            >
+              <IconFileExport size={18} />
+            </ActionIcon>
+          </Tooltip>
 
           <Button
             size="xs"
             leftSection={<IconDeviceFloppy size={16} />}
             variant={dirty ? 'filled' : 'default'}
             onClick={onSave}
+            visibleFrom="sm"
           >
             {dirty ? t('hdr.saveDirty') : t('hdr.saved')}
           </Button>
+          <Tooltip label={dirty ? t('hdr.saveDirty') : t('hdr.saved')}>
+            <ActionIcon
+              variant={dirty ? 'filled' : 'default'}
+              aria-label={dirty ? t('hdr.saveDirty') : t('hdr.saved')}
+              onClick={onSave}
+              hiddenFrom="sm"
+            >
+              <IconDeviceFloppy size={18} />
+            </ActionIcon>
+          </Tooltip>
 
           <Tooltip label={t('hdr.settings')}>
-            <ActionIcon variant="default" onClick={openSettings}>
+            <ActionIcon variant="default" aria-label={t('hdr.settings')} onClick={openSettings}>
               <IconSettings size={18} />
             </ActionIcon>
           </Tooltip>
 
           <Tooltip label={t('hdr.switch')}>
-            <ActionIcon variant="default" onClick={onSwitch}>
+            <ActionIcon variant="default" aria-label={t('hdr.switch')} onClick={onSwitch}>
               <IconLogout size={18} />
             </ActionIcon>
           </Tooltip>
+
+          <Burger
+            opened={asideOpened}
+            onClick={onToggleAside}
+            hiddenFrom="md"
+            size="sm"
+            aria-label={t('hdr.togglePanel')}
+          />
         </Group>
       </Group>
     </>

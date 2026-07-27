@@ -9,3 +9,40 @@ body,
   display: flex;
   flex-direction: column;
 }
+
+/* A surface that reads as *recessed* behind content in both themes.
+   Mantine's --mantine-color-default is white in light mode, which would leave
+   the canvas backdrop and thumbnail placeholders indistinguishable from the
+   panel around them; --mantine-color-body is too light in dark mode. */
+:root {
+  --app-surface-sunken: var(--mantine-color-gray-2);
+}
+
+[data-mantine-color-scheme='dark'] {
+  --app-surface-sunken: var(--mantine-color-dark-8);
+}
+
+/* Keyboard focus must be visible: the image list and workspace cards are
+   Tab-navigable, which is useless if the focused row looks like every other.
+   :focus-visible keeps the ring off plain mouse clicks. */
+:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Filename buttons in the image list must not push the row wider than the
+   navbar — long names are the common case. */
+.mantine-AppShell-navbar button {
+  max-width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -188,7 +188,9 @@ const en: Dict = {
   'set.enginePending': 'Pending on next load',
   'set.engineWarnings': 'Applied on load',
   // version × language guarding
-  'set.versionUnsupported': '{version} has no model for “{lang}”',
+  // Rendered after the version name ("PP-OCRv6 — no model for ..."), so it must
+  // not repeat {version} itself.
+  'set.versionUnsupported': 'no model for “{lang}”',
   'set.versionUseInstead': 'Use {version} instead.',
   'set.versionAuto': 'Default (engine picks)',
   // image size
@@ -395,7 +397,7 @@ const th: Dict = {
   'set.enginePending': 'จะใช้ตอนโหลดครั้งถัดไป',
   'set.engineWarnings': 'ปรับให้อัตโนมัติตอนโหลด',
   // version × language guarding
-  'set.versionUnsupported': '{version} ไม่มีโมเดลสำหรับ “{lang}”',
+  'set.versionUnsupported': 'ไม่มีโมเดลสำหรับ “{lang}”',
   'set.versionUseInstead': 'ใช้ {version} แทน',
   'set.versionAuto': 'ค่าเริ่มต้น (ให้เอนจินเลือก)',
   // image size

@@ -27,8 +27,12 @@ services:
       - ./models:/app/models               # OCR model weights (persistent)
       - ./data:/app/data                   # app state json
       - ./config:/app/config               # editable YAML config (settings persist)
-      - ./output_det:/app/output_det       # exported detection datasets
-      - ./output_rec:/app/output_rec       # exported recognition datasets
+      # Exported datasets get large (GBs). Point these somewhere outside the
+      # repo — set OUTPUT_DET_DIR / OUTPUT_REC_DIR in .env — when the checkout
+      # lives in a synced folder like OneDrive or Dropbox, or the sync client
+      # will happily upload every export.
+      - ${OUTPUT_DET_DIR:-./output_det}:/app/output_det
+      - ${OUTPUT_REC_DIR:-./output_rec}:/app/output_rec
       # To annotate an existing host folder without uploading, mount it and
       # create a workspace with that path, e.g.:
       # - ./images:/data/images:ro

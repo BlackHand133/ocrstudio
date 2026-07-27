@@ -18,6 +18,7 @@ Usage:
 
 import copy
 import os
+import re
 import yaml
 import json
 import logging
@@ -89,6 +90,9 @@ class ConfigManager:
         self.config_dir = os.path.join(root_dir, DIR_CONFIG)
         self.data_dir = os.path.join(root_dir, DIR_DATA)
 
+        # Must precede _load_all(): path values may reference these variables.
+        self._load_dotenv()
+
         # Config storage — fully-typed so mypy can check return values
         self._profiles: Dict[str, Dict[str, Any]] = {}
         self._current_profile: str = "cpu"
@@ -110,6 +114,55 @@ class ConfigManager:
         # the user's app config and recent-workspace list.
         self._migrate_deprecated_params()
 
+    def _load_dotenv(self):
+        """Read ``.env`` at the repo root into the environment, if present.
+
+        docker compose reads that file on its own; the desktop app and the CLI
+        do not. Without this, a .env that redirects exports out of a synced
+        folder would only take effect in the container, and everything else
+        would keep writing into the repo.
+
+        Real environment variables win — .env is the fallback, not an override.
+        """
+        dotenv = os.path.join(self.root_dir, ".env")
+        if not os.path.isfile(dotenv):
+            return
+        try:
+            with open(dotenv, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, _, value = line.partition("=")
+                    key = key.strip()
+                    if key and key not in os.environ:
+                        os.environ[key] = value.strip().strip('"').strip("'")
+        except OSError as exc:  # noqa: BLE001 - a bad .env must not stop startup
+            logger.warning("Could not read .env: %s", exc)
+
+    # ``${VAR:-fallback}`` — the shell's default-value form, so config.yaml can
+    # name the same environment variables docker-compose.web.yml uses without
+    # committing anyone's machine-specific absolute paths.
+    _ENV_PLACEHOLDER = re.compile(r"\$\{(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?::-(?P<default>[^}]*))?\}")
+
+    def _resolve_path(self, value: str) -> str:
+        """Expand ``${VAR:-fallback}`` in a configured path, then absolutize it.
+
+        Relative results are taken against the repo root; absolute ones are left
+        alone, so a path can point outside the checkout (exports easily reach
+        several GB, which is a problem when the repo sits in a synced folder).
+        """
+        if not isinstance(value, str):
+            return value
+
+        def substitute(match):
+            return os.environ.get(match.group("name"), match.group("default") or "")
+
+        expanded = self._ENV_PLACEHOLDER.sub(substitute, value).strip()
+        if not expanded:
+            return ""
+        return expanded if os.path.isabs(expanded) else os.path.join(self.root_dir, expanded)
+
     def _load_profiles(self):
         """Load OCR profile configurations from config.yaml."""
         config_file = os.path.join(self.config_dir, "config.yaml")
@@ -130,7 +183,7 @@ class ConfigManager:
                 if 'paths' in config_data:
                     # Update paths from config.yaml
                     for key, value in config_data.get('paths', {}).items():
-                        self._path_config[key] = os.path.join(self.root_dir, value)
+                        self._path_config[key] = self._resolve_path(value)
 
                 if self._profiles:
                     logger.info(f"Loaded {len(self._profiles)} profiles from config.yaml")

@@ -118,6 +118,74 @@ class TestProfileManagement:
 
 
 # ===========================================================================
+# Path resolution (${VAR:-fallback} + .env)
+# ===========================================================================
+
+class TestPathResolution:
+    """Exports reach several GB, so a path must be able to point outside the
+    repo — without the absolute path landing in the committed config."""
+
+    def test_relative_path_resolves_against_root(self, config_manager):
+        resolved = config_manager._resolve_path("output_det")
+        assert os.path.isabs(resolved)
+        assert resolved.endswith("output_det")
+
+    def test_absolute_path_is_left_alone(self, config_manager):
+        absolute = os.path.join(os.sep, "elsewhere", "exports")
+        assert config_manager._resolve_path(absolute) == absolute
+
+    def test_placeholder_falls_back_when_unset(self, config_manager, monkeypatch):
+        monkeypatch.delenv("OCR_TEST_OUT", raising=False)
+        resolved = config_manager._resolve_path("${OCR_TEST_OUT:-output_det}")
+        assert resolved.endswith("output_det")
+
+    def test_placeholder_uses_env_when_set(self, config_manager, monkeypatch):
+        target = os.path.join(os.sep, "mnt", "big-disk", "det")
+        monkeypatch.setenv("OCR_TEST_OUT", target)
+        assert config_manager._resolve_path("${OCR_TEST_OUT:-output_det}") == target
+
+    def test_dotenv_is_read_for_non_container_callers(self, tmp_path, monkeypatch):
+        """docker compose reads .env by itself; the desktop app and CLI do not.
+        Without this they keep writing into the repo while the container does
+        not, which is the whole problem this indirection exists to fix."""
+        from modules.config.manager import ConfigManager
+
+        root = tmp_path / "proj"
+        (root / "config").mkdir(parents=True)
+        (root / ".env").write_text(
+            "# comment\nOCR_DOTENV_OUT=/from/dotenv\n", encoding="utf-8"
+        )
+        import yaml
+        (root / "config" / "config.yaml").write_text(
+            yaml.safe_dump({
+                "default_profile": "cpu",
+                "profiles": {"cpu": {"paddleocr": {"lang": "th"}}},
+                "paths": {"output_det": "${OCR_DOTENV_OUT:-output_det}"},
+            }),
+            encoding="utf-8",
+        )
+        monkeypatch.delenv("OCR_DOTENV_OUT", raising=False)
+
+        ConfigManager.reset_instance()
+        cfg = ConfigManager(str(root))
+        assert cfg.get_path("output_det") == "/from/dotenv"
+        ConfigManager.reset_instance()
+
+    def test_real_env_beats_dotenv(self, tmp_path, monkeypatch):
+        from modules.config.manager import ConfigManager
+
+        root = tmp_path / "proj2"
+        (root / "config").mkdir(parents=True)
+        (root / ".env").write_text("OCR_DOTENV_OUT=/from/dotenv\n", encoding="utf-8")
+        monkeypatch.setenv("OCR_DOTENV_OUT", "/from/real/env")
+
+        ConfigManager.reset_instance()
+        cfg = ConfigManager(str(root))
+        assert cfg._resolve_path("${OCR_DOTENV_OUT:-x}") == "/from/real/env"
+        ConfigManager.reset_instance()
+
+
+# ===========================================================================
 # get_paddleocr_params
 # ===========================================================================
 

@@ -45,6 +45,20 @@ docker compose -f docker-compose.web.yml -f docker-compose.web.gpu.yml up --buil
 Data persists in the mounted host folders: `./workspaces`, `./models`, `./data`,
 `./output_det`, `./output_rec`.
 
+Exported datasets grow to several GB. If the checkout lives in a synced folder
+(OneDrive, Dropbox, Google Drive), move them out — the sync client will
+otherwise upload every export, all of it regenerable. Set the paths once in
+`.env`:
+
+```ini
+OUTPUT_DET_DIR=/mnt/big-disk/ocrstudio/output_det
+OUTPUT_REC_DIR=/mnt/big-disk/ocrstudio/output_rec
+```
+
+`config/config.yaml` reads the same variables under `paths:`, so the container,
+the desktop app and the CLI all agree. Leave them unset and everything stays
+inside the repo as before.
+
 > First OCR call downloads PaddleOCR model weights (needs internet, or mount
 > pre-downloaded weights into `./models`). Manual annotation works without them.
 

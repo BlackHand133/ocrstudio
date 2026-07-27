@@ -14,9 +14,9 @@ paths:
   cache: cache
   logs: logs
   models: models
-  output: output
-  output_det: output_det
-  output_rec: output_rec
+  output: ${OUTPUT_DIR:-output}
+  output_det: ${OUTPUT_DET_DIR:-output_det}
+  output_rec: ${OUTPUT_REC_DIR:-output_rec}
   temp: temp
   workspaces: workspaces
 profiles:

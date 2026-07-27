@@ -1,6 +1,7 @@
 import type {
   AnnotationsResponse,
   ConfigResponse,
+  EngineStatus,
   ExportResult,
   ImageInfo,
   JobStatus,
@@ -90,6 +91,7 @@ async function safeDetail(r: Response): Promise<string | null> {
 export const api = {
   // ---- config ----
   getConfig: () => jget<ConfigResponse>('/api/config'),
+  getEngineStatus: () => jget<EngineStatus>('/api/config/engine'),
   setProfile: (profile: string) =>
     jsend<ConfigResponse>('PUT', '/api/config/profile', { profile }),
   getProfileParams: (name: string) =>

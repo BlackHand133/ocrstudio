@@ -44,6 +44,33 @@ export interface ConfigResponse {
   profiles: string[];
   current_profile: string;
   languages: string[];
+  /** PP-OCR releases, newest first. */
+  ocr_versions: string[];
+  /**
+   * Languages each release can recognize. A version **absent** from this map has
+   * no documented restriction and allows every language — do not treat a missing
+   * key as an empty list.
+   */
+  version_languages: Record<string, string[]>;
+}
+
+/** What the OCR engine is actually running, as opposed to what is saved. */
+export interface EngineStatus {
+  engine: string;
+  engine_version: string;
+  /** False until the first detection builds the (heavy) engine. */
+  loaded: boolean;
+  ocr_version?: string | null;
+  profile?: string;
+  device?: string;
+  max_image_size?: number;
+  /** Parameter rewrites and version/language mismatches found at load time. */
+  warnings?: string[];
+  settings?: Record<string, unknown>;
+  /** Saved config that will apply on the next engine load. */
+  pending?: { profile: string; lang?: string | null; ocr_version?: string | null };
+  config_warnings?: string[];
+  error?: string;
 }
 
 export interface ExportResult {

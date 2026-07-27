@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
+  Badge,
   Button,
   Divider,
+  Group,
   Modal,
   NumberInput,
   SegmentedControl,
@@ -11,22 +14,47 @@ import {
   Text,
   TextInput,
 } from '@mantine/core';
+import { IconAlertTriangle, IconWand } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
 import { api } from '../../api/client';
-import { useConfig } from '../../hooks/queries';
+import { useConfig, useEngineStatus } from '../../hooks/queries';
 import { useT } from '../../i18n';
+import {
+  buildVersionOptions,
+  versionSupportsLang,
+  versionsForLang,
+} from '../../lib/ocrVersions';
+
+/**
+ * Detection settings tuned for scripts that stack marks above and below the
+ * base glyph. Thai tone marks are 1-2px thick, so the two things that lose them
+ * are a box that hugs the consonant body and a downscale before detection.
+ */
+const THAI_PRESET = {
+  text_det_unclip_ratio: 2.2,
+  text_det_box_thresh: 0.5,
+  max_image_size: 0,
+} as const;
+
+const DEFAULT_TUNING = {
+  text_det_unclip_ratio: 1.5,
+  text_det_box_thresh: 0.7,
+  max_image_size: 2500,
+} as const;
 
 export function SettingsModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const t = useT();
   const { data: config } = useConfig();
+  const { data: engine } = useEngineStatus(opened);
   const [profile, setProfile] = useState<string | null>(null);
   const [mode, setMode] = useState<'official' | 'custom'>('official');
   const [lang, setLang] = useState('th');
   const [ocrVersion, setOcrVersion] = useState<string | null>(null);
   const [detDir, setDetDir] = useState('');
   const [recDir, setRecDir] = useState('');
-  const [box, setBox] = useState(0.6);
-  const [unclip, setUnclip] = useState(1.5);
+  const [box, setBox] = useState<number>(DEFAULT_TUNING.text_det_box_thresh);
+  const [unclip, setUnclip] = useState<number>(DEFAULT_TUNING.text_det_unclip_ratio);
+  const [maxImageSize, setMaxImageSize] = useState<number>(DEFAULT_TUNING.max_image_size);
   const [orient, setOrient] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -46,12 +74,48 @@ export function SettingsModal({ opened, onClose }: { opened: boolean; onClose: (
         setDetDir(det);
         setRecDir(rec);
         setMode(det || rec ? 'custom' : 'official');
-        if (params.det_db_box_thresh != null) setBox(Number(params.det_db_box_thresh));
-        if (params.det_db_unclip_ratio != null) setUnclip(Number(params.det_db_unclip_ratio));
+        if (params.text_det_box_thresh != null) setBox(Number(params.text_det_box_thresh));
+        if (params.text_det_unclip_ratio != null) setUnclip(Number(params.text_det_unclip_ratio));
+        setMaxImageSize(
+          params.max_image_size != null
+            ? Number(params.max_image_size)
+            : DEFAULT_TUNING.max_image_size,
+        );
         setOrient(Boolean(params.use_textline_orientation));
       })
       .catch(() => undefined);
   }, [opened, profile]);
+
+  const versionLanguages = config?.version_languages;
+  const versions = useMemo(() => config?.ocr_versions ?? [], [config?.ocr_versions]);
+
+  const versionOptions = useMemo(
+    () =>
+      buildVersionOptions(versionLanguages, versions, lang, (version, code) =>
+        t('set.versionUnsupported', { version, lang: code }),
+      ),
+    [versionLanguages, versions, lang, t],
+  );
+
+  const firstSupportedVersion = useMemo(
+    () => versionsForLang(versionLanguages, versions, lang)[0],
+    [versionLanguages, versions, lang],
+  );
+
+  // Changing the language can strip the model out from under the chosen
+  // version. Drop back to "engine default" rather than saving a dead pair.
+  useEffect(() => {
+    if (ocrVersion && !versionSupportsLang(versionLanguages, ocrVersion, lang)) {
+      setOcrVersion(null);
+    }
+  }, [lang, versionLanguages, ocrVersion]);
+
+  const applyPreset = (preset: typeof THAI_PRESET | typeof DEFAULT_TUNING) => {
+    setUnclip(preset.text_det_unclip_ratio);
+    setBox(preset.text_det_box_thresh);
+    setMaxImageSize(preset.max_image_size);
+    notifications.show({ color: 'blue', message: t('set.presetApplied') });
+  };
 
   const save = async () => {
     if (!profile) return;
@@ -59,8 +123,9 @@ export function SettingsModal({ opened, onClose }: { opened: boolean; onClose: (
     try {
       const common = {
         lang,
-        det_db_box_thresh: box,
-        det_db_unclip_ratio: unclip,
+        text_det_box_thresh: box,
+        text_det_unclip_ratio: unclip,
+        max_image_size: maxImageSize,
         use_textline_orientation: orient,
       };
       const payload =
@@ -83,15 +148,60 @@ export function SettingsModal({ opened, onClose }: { opened: boolean; onClose: (
       notifications.show({ color: 'green', message: t('set.savedToast') });
       onClose();
     } catch (e) {
-      notifications.show({ color: 'red', title: t('common.saveFailed'), message: (e as Error).message });
+      notifications.show({
+        color: 'red',
+        title: t('common.saveFailed'),
+        message: (e as Error).message,
+      });
     } finally {
       setBusy(false);
     }
   };
 
+  const engineWarnings = engine?.warnings ?? [];
+  const shrinksImages = maxImageSize > 0 && maxImageSize < 1600;
+
   return (
     <Modal opened={opened} onClose={onClose} title={t('set.title')} size="md">
       <Stack gap="sm">
+        {engine && (
+          <Group gap="xs" wrap="wrap" aria-live="polite">
+            <Text size="sm" fw={500}>
+              {t('set.engine')}
+            </Text>
+            <Badge color={engine.loaded ? 'green' : 'gray'} variant="light">
+              {engine.loaded ? t('set.engineLoaded') : t('set.engineIdle')}
+            </Badge>
+            <Text size="xs" c="dimmed">
+              {engine.engine} {engine.engine_version}
+              {engine.loaded && engine.ocr_version ? ` · ${engine.ocr_version}` : ''}
+              {engine.loaded && engine.device ? ` · ${engine.device}` : ''}
+            </Text>
+            {!engine.loaded && (
+              <Text size="xs" c="dimmed">
+                {t('set.engineIdleHint')}
+              </Text>
+            )}
+          </Group>
+        )}
+
+        {engineWarnings.length > 0 && (
+          <Alert
+            variant="light"
+            color="yellow"
+            icon={<IconAlertTriangle size={16} />}
+            title={t('set.engineWarnings')}
+          >
+            <Stack gap={2}>
+              {engineWarnings.map((w) => (
+                <Text key={w} size="xs">
+                  {w}
+                </Text>
+              ))}
+            </Stack>
+          </Alert>
+        )}
+
         <Select
           label={t('set.profile')}
           data={config?.profiles ?? []}
@@ -101,11 +211,12 @@ export function SettingsModal({ opened, onClose }: { opened: boolean; onClose: (
         />
 
         <div>
-          <Text size="sm" fw={500} mb={4}>
+          <Text size="sm" fw={500} mb={4} id="model-source-label">
             {t('set.modelSource')}
           </Text>
           <SegmentedControl
             fullWidth
+            aria-labelledby="model-source-label"
             value={mode}
             onChange={(v) => setMode(v as 'official' | 'custom')}
             data={[
@@ -126,11 +237,16 @@ export function SettingsModal({ opened, onClose }: { opened: boolean; onClose: (
             />
             <Select
               label={t('set.version')}
-              placeholder={t('set.versionPh')}
-              data={['PP-OCRv5', 'PP-OCRv4', 'PP-OCRv3']}
+              placeholder={t('set.versionAuto')}
+              data={versionOptions}
               value={ocrVersion}
               onChange={setOcrVersion}
               clearable
+              description={
+                firstSupportedVersion && ocrVersion == null
+                  ? t('set.versionUseInstead', { version: firstSupportedVersion })
+                  : undefined
+              }
             />
           </>
         ) : (
@@ -160,10 +276,28 @@ export function SettingsModal({ opened, onClose }: { opened: boolean; onClose: (
           </>
         )}
 
+        <Divider label={t('set.presets')} labelPosition="center" />
+        <Group gap="xs">
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconWand size={14} />}
+            onClick={() => applyPreset(THAI_PRESET)}
+          >
+            {t('set.presetThai')}
+          </Button>
+          <Button size="xs" variant="subtle" onClick={() => applyPreset(DEFAULT_TUNING)}>
+            {t('set.presetDefaults')}
+          </Button>
+        </Group>
+        <Text size="xs" c="dimmed">
+          {t('set.presetThaiDesc')}
+        </Text>
+
         <Divider label={t('set.detTuning')} labelPosition="center" />
         <NumberInput
           label={t('set.boxThresh')}
-          description="det_db_box_thresh (0–1)"
+          description="text_det_box_thresh (0–1)"
           min={0}
           max={1}
           step={0.05}
@@ -173,7 +307,7 @@ export function SettingsModal({ opened, onClose }: { opened: boolean; onClose: (
         />
         <NumberInput
           label={t('set.unclip')}
-          description="det_db_unclip_ratio (1–5)"
+          description="text_det_unclip_ratio (1–5)"
           min={1}
           max={5}
           step={0.1}
@@ -185,6 +319,18 @@ export function SettingsModal({ opened, onClose }: { opened: boolean; onClose: (
           label={t('set.textline')}
           checked={orient}
           onChange={(e) => setOrient(e.currentTarget.checked)}
+        />
+
+        <Divider label={t('set.preprocess')} labelPosition="center" />
+        <NumberInput
+          label={t('set.maxImageSize')}
+          description={t('set.maxImageSizeDesc')}
+          min={0}
+          max={10000}
+          step={100}
+          value={maxImageSize}
+          onChange={(v) => setMaxImageSize(Math.max(0, Number(v) || 0))}
+          error={shrinksImages ? t('set.maxImageSizeWarn') : undefined}
         />
 
         <Button loading={busy} onClick={save}>

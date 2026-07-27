@@ -26,7 +26,11 @@ services:
       - ./models:/app/models               # OCR model weights (persistent)
       - ./data:/app/data                   # app state json
       - ./config:/app/config               # editable YAML config
-      - ./output_det:/app/output_det       # exported detection datasets
-      - ./output_rec:/app/output_rec       # exported recognition datasets
+      # Exported datasets get large (GBs). Point these somewhere outside the
+      # repo — set OUTPUT_DET_DIR / OUTPUT_REC_DIR in .env — when the checkout
+      # lives in a synced folder like OneDrive or Dropbox, or the sync client
+      # will happily upload every export.
+      - ${OUTPUT_DET_DIR:-./output_det}:/app/output_det
+      - ${OUTPUT_REC_DIR:-./output_rec}:/app/output_rec
     restart: unless-stopped
     shm_size: "1g"                         # PaddleOCR likes more shared memory

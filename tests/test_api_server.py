@@ -98,12 +98,64 @@ def test_settings_profile_params(client, tmp_path, monkeypatch):
     assert r.status_code == 200
     assert "lang" in r.json()["params"]
 
-    r = client.put("/api/config/profiles/cpu", json={"lang": "en", "det_db_box_thresh": 0.5})
+    r = client.put(
+        "/api/config/profiles/cpu", json={"lang": "en", "text_det_box_thresh": 0.5}
+    )
     assert r.status_code == 200, r.text
     assert r.json()["params"]["lang"] == "en"
-    assert r.json()["params"]["det_db_box_thresh"] == 0.5
+    assert r.json()["params"]["text_det_box_thresh"] == 0.5
+
+    # Deprecated 2.x names stay accepted for older clients, but are stored and
+    # returned under the 3.x name — PaddleOCR rejects the pair if both persist.
+    r = client.put("/api/config/profiles/cpu", json={"det_db_box_thresh": 0.42})
+    assert r.status_code == 200, r.text
+    params = r.json()["params"]
+    assert params["text_det_box_thresh"] == 0.42
+    assert "det_db_box_thresh" not in params
 
     assert client.get("/api/config/profiles/nope").status_code == 404
+
+
+def test_settings_rejects_version_without_language_model(client, tmp_path, monkeypatch):
+    """PP-OCRv6 has no Thai model; saving that pair must fail loudly here rather
+    than as an opaque PaddleOCR error on the first detect."""
+    from modules.config import ConfigManager
+
+    cfg = ConfigManager(str(tmp_path / "cfgver"))
+    monkeypatch.setattr("server.routers.config.get_config", lambda: cfg)
+
+    r = client.put(
+        "/api/config/profiles/cpu", json={"lang": "th", "ocr_version": "PP-OCRv6"}
+    )
+    assert r.status_code == 400
+    assert "PP-OCRv5" in r.json()["detail"]  # points at the version that works
+
+    # The supported pairing goes through.
+    r = client.put(
+        "/api/config/profiles/cpu", json={"lang": "th", "ocr_version": "PP-OCRv5"}
+    )
+    assert r.status_code == 200, r.text
+
+
+def test_config_exposes_version_capability_matrix(client):
+    r = client.get("/api/config")
+    assert r.status_code == 200
+    body = r.json()
+    assert "PP-OCRv6" in body["ocr_versions"]
+    # v6 is language-restricted and must advertise that Thai is not included.
+    assert "th" not in body["version_languages"]["PP-OCRv6"]
+    # v5 has no documented restriction, so it is absent from the map entirely.
+    assert "PP-OCRv5" not in body["version_languages"]
+
+
+def test_engine_status_without_loaded_detector(client):
+    """The status endpoint must answer without building the (heavy) engine."""
+    r = client.get("/api/config/engine")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["loaded"] is False
+    assert "engine_version" in body
+    assert "pending" in body
 
 
 def test_settings_custom_model_switch(client, tmp_path, monkeypatch):

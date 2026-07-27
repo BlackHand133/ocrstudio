@@ -112,6 +112,13 @@ class ConfigResponse(BaseModel):
     profiles: List[str]
     current_profile: str
     languages: List[str]
+    # PP-OCR releases, newest first.
+    ocr_versions: List[str] = []
+    # version -> languages it can recognize. A version missing from this map has
+    # no documented restriction, so the UI should allow every language for it.
+    # Lets the settings UI grey out combinations that cannot work (notably
+    # PP-OCRv6, which has no Thai model) instead of failing at detect time.
+    version_languages: Dict[str, List[str]] = {}
 
 
 class MessageResponse(BaseModel):

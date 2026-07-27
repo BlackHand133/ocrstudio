@@ -77,6 +77,15 @@ def get_detector():
     return _detector
 
 
+def peek_detector():
+    """Return the loaded detector, or ``None`` if it has not been built yet.
+
+    Unlike :func:`get_detector` this never constructs the engine, so status
+    endpoints can report on it without triggering a multi-second model load.
+    """
+    return _detector
+
+
 def reset_detector() -> None:
     """Drop the cached detector so the next detect reloads with fresh config."""
     global _detector

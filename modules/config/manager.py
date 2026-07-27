@@ -27,10 +27,25 @@ from pathlib import Path
 from modules.constants import (
     DIR_CONFIG, DIR_DATA, DIR_WORKSPACES, DIR_OUTPUT_DET, DIR_OUTPUT_REC,
     DIR_MODELS, DIR_LOGS, DIR_CACHE, WORKSPACE_VERSION,
-    DEFAULT_OCR_LANG, DEFAULT_DET_DB_BOX_THRESH, DEFAULT_DET_DB_UNCLIP_RATIO
+    DEFAULT_OCR_LANG, DEFAULT_TEXT_DET_BOX_THRESH, DEFAULT_TEXT_DET_UNCLIP_RATIO
 )
+# NOTE: modules.core.ocr.compat is imported lazily inside the methods below.
+# It is a dependency-free leaf module, but importing it eagerly executes
+# modules/core/ocr/__init__.py, which drags in cv2 and paddle — a ~5s cost on a
+# package that CLI and tests import just to read a YAML file.
 
 logger = logging.getLogger("TextDetGUI")
+
+# Written at the top of config.yaml on every save. Saving goes through
+# yaml.safe_dump, which drops comments, so this is the one place we can warn the
+# user before they lose notes they typed into the file.
+_CONFIG_HEADER = """\
+# OCR Studio configuration - REGENERATED on every save from the app.
+# Comments you add below this header are NOT preserved.
+# Parameter reference and tuning notes: docs/PADDLEOCR_CONFIG_GUIDE.md
+# Uses PaddleOCR 3.x parameter names; 2.x names (det_db_*, rec_batch_num, ...)
+# are migrated automatically on load.
+"""
 
 
 class ConfigManager:
@@ -90,6 +105,10 @@ class ConfigManager:
         self._load_path_config()
         self._load_app_config()
         self._load_recent_workspaces()
+        # Runs last: it may persist, and save() writes every config file — so
+        # everything has to be loaded before it fires or we'd flush blanks over
+        # the user's app config and recent-workspace list.
+        self._migrate_deprecated_params()
 
     def _load_profiles(self):
         """Load OCR profile configurations from config.yaml."""
@@ -134,6 +153,49 @@ class ConfigManager:
         if not self._profiles:
             logger.warning("No profiles found, using fallback")
             self._profiles = self._get_fallback_profiles()
+
+    def _migrate_deprecated_params(self) -> bool:
+        """Rewrite PaddleOCR 2.x parameter names in loaded profiles to 3.x.
+
+        Configs written before the 3.x rename still say ``det_db_box_thresh``
+        and friends.  PaddleOCR 3.x rejects those, so the detection-tuning
+        values silently stopped taking effect.  We rewrite them in place on load
+        and persist once, so the user's saved thresholds start working again
+        without them having to touch the file.
+
+        Returns:
+            True if anything changed (and was persisted).
+        """
+        from modules.core.ocr.compat import PARAM_ALIASES
+
+        changed: List[str] = []
+
+        for profile_name, profile in self._profiles.items():
+            ocr = profile.get("paddleocr")
+            if not isinstance(ocr, dict):
+                continue
+
+            for old_key, new_key in PARAM_ALIASES.items():
+                if old_key not in ocr:
+                    continue
+                value = ocr.pop(old_key)
+                if new_key in ocr:
+                    # Modern spelling already present — the old key was dead
+                    # weight, and passing both would make PaddleOCR raise.
+                    changed.append(f"{profile_name}: dropped '{old_key}'")
+                else:
+                    ocr[new_key] = value
+                    changed.append(f"{profile_name}: '{old_key}' -> '{new_key}'")
+
+        if not changed:
+            return False
+
+        logger.info("Migrated deprecated PaddleOCR params — %s", "; ".join(changed))
+        try:
+            self.save()
+        except Exception as exc:  # noqa: BLE001 - migration must not block startup
+            logger.warning("Could not persist parameter migration: %s", exc)
+        return True
 
     def _load_path_config(self):
         """Load path configurations."""
@@ -193,8 +255,8 @@ class ConfigManager:
                     'use_doc_unwarping': False,
                     'use_textline_orientation': False,
                     'device': 'cpu',
-                    'det_db_box_thresh': DEFAULT_DET_DB_BOX_THRESH,
-                    'det_db_unclip_ratio': DEFAULT_DET_DB_UNCLIP_RATIO
+                    'text_det_box_thresh': DEFAULT_TEXT_DET_BOX_THRESH,
+                    'text_det_unclip_ratio': DEFAULT_TEXT_DET_UNCLIP_RATIO
                 }
             },
             'gpu': {
@@ -205,8 +267,8 @@ class ConfigManager:
                     'use_doc_unwarping': False,
                     'use_textline_orientation': True,
                     'device': 'gpu',
-                    'det_db_box_thresh': DEFAULT_DET_DB_BOX_THRESH,
-                    'det_db_unclip_ratio': DEFAULT_DET_DB_UNCLIP_RATIO
+                    'text_det_box_thresh': DEFAULT_TEXT_DET_BOX_THRESH,
+                    'text_det_unclip_ratio': DEFAULT_TEXT_DET_UNCLIP_RATIO
                 }
             }
         }
@@ -431,6 +493,11 @@ class ConfigManager:
         """
         Save the full config.yaml (profiles + default_profile + app) and
         all JSON data files.  Drop-in replacement for ConfigLoader.save().
+
+        Note: this rewrites config.yaml through ``yaml.safe_dump``, which does
+        not round-trip comments — any the user hand-wrote are lost on the first
+        save from the UI.  A header is emitted saying so, and the tuning notes
+        that used to live in comments are in docs/PADDLEOCR_CONFIG_GUIDE.md.
         """
         config_file = self.config_file
         os.makedirs(os.path.dirname(config_file), exist_ok=True)
@@ -452,6 +519,7 @@ class ConfigManager:
             }
 
         with open(config_file, "w", encoding="utf-8") as f:
+            f.write(_CONFIG_HEADER)
             yaml.safe_dump(full_config, f, allow_unicode=True, default_flow_style=False)
 
         self.save_all()
@@ -541,6 +609,8 @@ class ConfigManager:
         Returns:
             List of warning message strings.  Empty list means clean config.
         """
+        from modules.core.ocr.compat import explain_unsupported, version_supports_lang
+
         warnings: List[str] = []
 
         # 1. Active profile exists
@@ -552,11 +622,12 @@ class ConfigManager:
             logger.warning("Config validation: %s", msg)
             warnings.append(msg)
 
-        # 2. Per-profile checks
-        _REQUIRED_PADDLE_KEYS = ("lang", "det_db_box_thresh", "det_db_unclip_ratio")
+        # 2. Per-profile checks (PaddleOCR 3.x names — _migrate_deprecated_params
+        # has already rewritten any 2.x spelling by the time this runs).
+        _REQUIRED_PADDLE_KEYS = ("lang", "text_det_box_thresh", "text_det_unclip_ratio")
         _FLOAT_RANGES: Dict[str, tuple] = {
-            "det_db_box_thresh":   (0.0, 1.0),
-            "det_db_unclip_ratio": (1.0, 5.0),
+            "text_det_box_thresh":   (0.0, 1.0),
+            "text_det_unclip_ratio": (1.0, 5.0),
         }
 
         for profile_name, profile in self._profiles.items():
@@ -594,6 +665,14 @@ class ConfigManager:
                         )
                         logger.warning("Config validation: %s", msg)
                         warnings.append(msg)
+
+            # PP-OCR release vs language
+            version = ocr.get("ocr_version")
+            lang = ocr.get("lang")
+            if version and lang and not version_supports_lang(version, lang):
+                msg = f"Profile '{profile_name}': {explain_unsupported(version, lang)}"
+                logger.warning("Config validation: %s", msg)
+                warnings.append(msg)
 
             # Custom model path existence
             for path_key in (

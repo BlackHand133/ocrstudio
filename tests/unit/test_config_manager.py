@@ -130,7 +130,20 @@ class TestGetPaddleocrParams:
     def test_cpu_params_have_expected_keys(self, config_manager):
         params = config_manager.get_paddleocr_params("cpu")
         assert "lang" in params
-        assert "det_db_box_thresh" in params
+        assert "text_det_box_thresh" in params
+
+    def test_deprecated_names_are_migrated(self, config_manager):
+        """The fixture config uses 2.x names; loading must rewrite them.
+
+        PaddleOCR 3.x rejects a deprecated name alongside its replacement, so a
+        leftover det_db_* key means the user's tuned threshold silently stops
+        reaching the engine.
+        """
+        params = config_manager.get_paddleocr_params("cpu")
+        assert "det_db_box_thresh" not in params
+        assert "det_db_unclip_ratio" not in params
+        assert abs(params["text_det_box_thresh"] - 0.7) < 1e-9
+        assert abs(params["text_det_unclip_ratio"] - 1.5) < 1e-9
 
     def test_default_profile_used_when_none(self, config_manager):
         params_default = config_manager.get_paddleocr_params()
@@ -157,10 +170,10 @@ class TestUpdateProfileSetting:
 
     def test_numeric_value_update(self, config_manager):
         config_manager.update_profile_setting(
-            "cpu", "paddleocr.det_db_box_thresh", 0.8
+            "cpu", "paddleocr.text_det_box_thresh", 0.8
         )
         params = config_manager.get_paddleocr_params("cpu")
-        assert abs(params["det_db_box_thresh"] - 0.8) < 1e-9
+        assert abs(params["text_det_box_thresh"] - 0.8) < 1e-9
 
     def test_creates_new_nested_key(self, config_manager):
         config_manager.update_profile_setting("cpu", "paddleocr.new_param", 99)
@@ -184,7 +197,7 @@ class TestSaveReload:
         from modules.config.manager import ConfigManager
 
         config_manager.update_profile_setting(
-            "cpu", "paddleocr.det_db_box_thresh", 0.99
+            "cpu", "paddleocr.text_det_box_thresh", 0.99
         )
         config_manager.save()
 
@@ -193,7 +206,7 @@ class TestSaveReload:
         reloaded = ConfigManager.instance(root_dir=str(minimal_config_yaml))
 
         params = reloaded.get_paddleocr_params("cpu")
-        assert abs(params["det_db_box_thresh"] - 0.99) < 1e-9
+        assert abs(params["text_det_box_thresh"] - 0.99) < 1e-9
         ConfigManager.reset_instance()
 
     def test_save_preserves_default_profile(
@@ -239,16 +252,16 @@ class TestSnapshotRestore:
 
     def test_restore_reverts_paddleocr_change(self, config_manager):
         original_thresh = config_manager.get_paddleocr_params("cpu")[
-            "det_db_box_thresh"
+            "text_det_box_thresh"
         ]
         snap = config_manager.snapshot()
 
         config_manager.update_profile_setting(
-            "cpu", "paddleocr.det_db_box_thresh", 0.001
+            "cpu", "paddleocr.text_det_box_thresh", 0.001
         )
         config_manager.restore_snapshot(snap)
 
-        restored = config_manager.get_paddleocr_params("cpu")["det_db_box_thresh"]
+        restored = config_manager.get_paddleocr_params("cpu")["text_det_box_thresh"]
         assert abs(restored - original_thresh) < 1e-9
 
 

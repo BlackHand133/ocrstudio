@@ -23,7 +23,13 @@ import numpy as np
 from typing import Optional, Dict, Any, List
 from PIL import Image
 
-from modules.constants import DEFAULT_OCR_LANG
+from modules.constants import DEFAULT_MAX_IMAGE_SIZE, DEFAULT_OCR_LANG
+from modules.core.ocr.compat import (
+    engine_version,
+    explain_unsupported,
+    normalize_params,
+    version_supports_lang,
+)
 
 logger = logging.getLogger("TextDetGUI")
 
@@ -84,7 +90,17 @@ class TextDetector:
         # ===== 3. Setup Environment =====
         self._setup_environment()
 
-        # ===== 4. Initialize PaddleOCR =====
+        # ===== 4. Check version/language compatibility =====
+        self.compat_warnings: List[str] = []
+        self._check_version_lang()
+
+        # Largest side an image is downscaled to before OCR. Read before the
+        # engine is built because it is ours, not a PaddleOCR keyword.
+        self.max_image_size = int(
+            self.config.get('max_image_size', DEFAULT_MAX_IMAGE_SIZE) or 0
+        )
+
+        # ===== 5. Initialize PaddleOCR =====
         self._init_paddleocr()
 
         # Log summary
@@ -92,6 +108,21 @@ class TextDetector:
             f"TextDetector initialized: profile={self.profile_name}, "
             f"device={self.config.get('device', 'cpu').upper()}"
         )
+
+    def _check_version_lang(self):
+        """Warn when the configured PP-OCR version has no model for the language.
+
+        We only warn — PaddleOCR may still fall back to something usable, and
+        blocking here would strand a user whose config predates this check. The
+        UI surfaces the same information up front so it rarely gets this far.
+        """
+        version = self.config.get('ocr_version')
+        lang = self.config.get('lang', DEFAULT_OCR_LANG)
+
+        if version and not version_supports_lang(version, lang):
+            msg = explain_unsupported(version, lang)
+            self.logger.warning("OCR config: %s", msg)
+            self.compat_warnings.append(msg)
 
     def _load_config(
         self,
@@ -194,16 +225,26 @@ class TextDetector:
         os.environ['KMP_SETTINGS'] = '1'
 
     def _init_paddleocr(self):
-        """Initialize PaddleOCR instance."""
+        """Initialize PaddleOCR instance.
+
+        Profile params are normalized to PaddleOCR 3.x spelling first: configs
+        written for 2.x still use ``det_db_box_thresh`` and friends, which 3.x
+        rejects. See :mod:`modules.core.ocr.compat`.
+        """
         from paddleocr import PaddleOCR
 
-        try:
-            self.logger.debug(f"Initializing PaddleOCR with params: {self.config}")
-            self.ocr = PaddleOCR(**self.config)
+        params, notes = normalize_params(self.config)
+        self.compat_warnings.extend(notes)
+        self.engine_params = params
 
-            device_used = self.config.get('device', 'cpu')
+        try:
+            self.logger.debug(f"Initializing PaddleOCR with params: {params}")
+            self.ocr = PaddleOCR(**params)
+
+            device_used = params.get('device', 'cpu')
             self.logger.info(
-                f"PaddleOCR initialized: lang={self.config.get('lang', DEFAULT_OCR_LANG)}, "
+                f"PaddleOCR {engine_version()} initialized: "
+                f"lang={params.get('lang', DEFAULT_OCR_LANG)}, "
                 f"device={device_used.upper()}"
             )
 
@@ -247,12 +288,19 @@ class TextDetector:
                 self.logger.error(f"Failed to read image: {img_path}")
                 return []
 
-            # Auto-resize for large images
+            # Auto-resize for large images.
+            # Downscaling is lossy for scripts that stack thin marks above and
+            # below the baseline (Thai tone marks, Vietnamese diacritics): the
+            # strokes are only a pixel or two wide and blur into the body glyph.
+            # Raise ``max_image_size`` in the profile when marks go missing.
             h, w = img.shape[:2]
             original_size = (w, h)
-            max_size = 2500  # Maximum recommended size
+            max_size = self.max_image_size
             scale_x, scale_y = 1.0, 1.0
             resized = False
+
+            if max_size <= 0:  # 0 / negative disables the downscale entirely
+                max_size = max(h, w)
 
             if max(h, w) > max_size:
                 # Calculate new size (maintain aspect ratio)
@@ -408,18 +456,32 @@ class TextDetector:
         """
         Get current model information.
 
+        Reports what is actually loaded — the installed PaddleOCR version, the
+        PP-OCR release in use, any custom model directories, and any
+        compatibility rewrites applied to the profile.
+
         Returns:
             Dict with model info
         """
+        params = getattr(self, 'engine_params', self.config)
+
         info = {
-            'version': 'PaddleOCR 3.0',
+            'engine': 'PaddleOCR',
+            'engine_version': engine_version(),
+            'ocr_version': params.get('ocr_version'),
             'profile': self.profile_name,
             'device': 'GPU' if self.use_gpu else 'CPU',
+            'max_image_size': self.max_image_size,
+            'warnings': list(self.compat_warnings),
             'settings': {
-                'lang': self.config.get('lang', DEFAULT_OCR_LANG),
-                'use_doc_orientation_classify': self.config.get('use_doc_orientation_classify', False),
-                'use_doc_unwarping': self.config.get('use_doc_unwarping', False),
-                'use_textline_orientation': self.config.get('use_textline_orientation', False),
+                'lang': params.get('lang', DEFAULT_OCR_LANG),
+                'text_det_box_thresh': params.get('text_det_box_thresh'),
+                'text_det_unclip_ratio': params.get('text_det_unclip_ratio'),
+                'text_detection_model_dir': params.get('text_detection_model_dir'),
+                'text_recognition_model_dir': params.get('text_recognition_model_dir'),
+                'use_doc_orientation_classify': params.get('use_doc_orientation_classify', False),
+                'use_doc_unwarping': params.get('use_doc_unwarping', False),
+                'use_textline_orientation': params.get('use_textline_orientation', False),
             }
         }
         return info

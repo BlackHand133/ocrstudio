@@ -119,6 +119,42 @@ Crop the detection boxes and look at them before changing anything:
 - Mark is **inside** the crop but missing from the text → recognition problem.
   More unclip will not help; you need a better recognition model.
 
+Faster than cropping: score the annotations you already have.
+
+```bash
+python scripts/thai_quality.py --workspace dataset
+```
+
+It reports orphan marks — Thai vowels and tone marks with no Thai character in
+front of them — and, more usefully, **what precedes each one**. If most follow a
+Latin letter, the marks are not being cropped off at all: their base consonant
+is being recognised as a Latin lookalike (ท→n, ส→s, อ→o, พ→w, จ→D), which
+leaves the mark stranded. That is a recognition-model problem and no amount of
+unclip ratio will touch it.
+
+### Comparing two recognition models
+
+Before re-running OCR across a workspace, check the change is actually an
+improvement on your own images:
+
+```bash
+python scripts/compare_rec_models.py --workspace dataset --sample 16
+```
+
+Defaults to the Thai model versus the general one. Both runs see the same
+images, and the saved annotations are scored alongside as a third reference.
+
+**Read the `thai` column before the rates.** A model that outputs no Thai at all
+scores a perfect `0.00` on every error rate while being completely broken — the
+denominator vanished, not the errors. The script prints a warning when that
+happens, but the habit is worth having.
+
+If `paddleocr` is not installed locally, run it in the app image:
+
+```bash
+docker run --rm -v "$PWD:/work" -w /work ocrstudio-web:latest python scripts/compare_rec_models.py --workspace dataset
+```
+
 ---
 
 ## Using custom models
@@ -236,3 +272,5 @@ image does this).
 - [PaddleOCR OCR pipeline docs](https://www.paddleocr.ai/latest/en/version3.x/pipeline_usage/OCR.html)
 - [PaddleOCR model list](https://github.com/PaddlePaddle/PaddleOCR/blob/main/docs/version3.x/model_list.en.md)
 - `modules/core/ocr/compat.py` — rename table and version/language matrix in code
+- `scripts/thai_quality.py` — score saved annotations, no OCR engine needed
+- `scripts/compare_rec_models.py` — A/B two recognition models on your images

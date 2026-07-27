@@ -39,101 +39,14 @@ import { useImages } from '../../hooks/queries';
 import { saveCurrent } from '../../controller';
 import { useT } from '../../i18n';
 import type { ExportResult } from '../../types';
-
-// Per-effect tunable parameters. `fixed` carries non-UI params the backend
-// needs; each `params` entry becomes a labelled NumberInput the user can adjust.
-type ParamSpec = { key: string; label: string; min: number; max: number; step: number; def: number };
-type AugDef = { type: string; label: string; params: ParamSpec[]; fixed?: Record<string, unknown> };
-
-const AUG_DEFS: AugDef[] = [
-  { type: 'blur', label: 'Blur', params: [{ key: 'kernel_size', label: 'Kernel', min: 3, max: 25, step: 2, def: 5 }] },
-  {
-    type: 'noise',
-    label: 'Noise',
-    fixed: { noise_type: 'gaussian' },
-    params: [{ key: 'intensity', label: 'Intensity', min: 5, max: 80, step: 5, def: 20 }],
-  },
-  {
-    type: 'brightness_contrast',
-    label: 'Brightness',
-    params: [
-      { key: 'brightness', label: 'Brightness', min: -80, max: 80, step: 5, def: 15 },
-      { key: 'contrast', label: 'Contrast', min: 0.5, max: 2, step: 0.05, def: 1.2 },
-    ],
-  },
-  { type: 'grayscale', label: 'Grayscale', params: [] },
-  { type: 'sharpen', label: 'Sharpen', params: [{ key: 'strength', label: 'Strength', min: 0.2, max: 3, step: 0.1, def: 1 }] },
-  { type: 'rotation', label: 'Rotate', params: [{ key: 'angle', label: 'Max angle°', min: 1, max: 30, step: 1, def: 3 }] },
-  { type: 'perspective', label: 'Perspective', params: [{ key: 'strength', label: 'Strength', min: 0.02, max: 0.3, step: 0.01, def: 0.08 }] },
-  {
-    type: 'color_jitter',
-    label: 'Color',
-    params: [
-      { key: 'saturation', label: 'Saturation', min: 0.3, max: 2, step: 0.05, def: 1.3 },
-      { key: 'hue', label: 'Hue', min: -0.5, max: 0.5, step: 0.02, def: 0.05 },
-    ],
-  },
-  {
-    type: 'shear',
-    label: 'Shear',
-    params: [
-      { key: 'shear_x', label: 'Shear X', min: 0, max: 0.4, step: 0.02, def: 0.1 },
-      { key: 'shear_y', label: 'Shear Y', min: 0, max: 0.4, step: 0.02, def: 0 },
-    ],
-  },
-  {
-    type: 'random_erasing',
-    label: 'Random erase',
-    fixed: { prob: 1 },
-    params: [{ key: 'area_ratio', label: 'Area', min: 0.02, max: 0.4, step: 0.02, def: 0.06 }],
-  },
-];
-
-const defaultAugParams = (): Record<string, Record<string, number>> =>
-  Object.fromEntries(
-    AUG_DEFS.map((d) => [d.type, Object.fromEntries(d.params.map((p) => [p.key, p.def]))]),
-  );
-
-const FORMATS: { value: DatasetFormat; label: string }[] = [
-  { value: 'paddleocr', label: 'PaddleOCR (det + rec)' },
-  { value: 'icdar', label: 'ICDAR-2015 (det)' },
-  { value: 'coco', label: 'COCO (det)' },
-  { value: 'yolo', label: 'YOLO (det)' },
-  { value: 'csv', label: 'CSV manifest' },
-  { value: 'jsonl', label: 'JSONL manifest' },
-];
-const DET_ONLY: DatasetFormat[] = ['icdar', 'coco', 'yolo'];
-const SPLIT_COLORS: Record<string, string> = { train: 'blue', valid: 'teal', test: 'orange' };
-
-/** Roboflow-style horizontal train/valid/test bar from a split preview. */
-function SplitBar({ splits, total }: { splits: Record<string, number>; total: number }) {
-  const denom = total || 1;
-  return (
-    <Progress.Root size={26} radius="sm">
-      {Object.entries(splits).map(
-        ([k, v]) =>
-          v > 0 && (
-            <Progress.Section key={k} value={(v / denom) * 100} color={SPLIT_COLORS[k] || 'gray'}>
-              <Progress.Label>{`${k} ${v}`}</Progress.Label>
-            </Progress.Section>
-          ),
-      )}
-    </Progress.Root>
-  );
-}
-
-function Row({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <Group justify="space-between" gap="sm" wrap="nowrap">
-      <Text size="sm" c="dimmed">
-        {label}
-      </Text>
-      <Text size="sm" fw={500} ta="right">
-        {value}
-      </Text>
-    </Group>
-  );
-}
+import {
+  AUG_DEFS,
+  DET_ONLY,
+  FORMATS,
+  defaultAugParams,
+} from './export/augmentationDefs';
+import { SplitBar, SummaryRow } from './export/parts';
+import { AugmentationPicker } from './export/AugmentationPicker';
 
 export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const t = useT();
@@ -510,42 +423,13 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
             />
             {augment && (
               <>
-                <Stack gap={6}>
-                  {AUG_DEFS.map((d) => {
-                    const on = selAugs.includes(d.type);
-                    return (
-                      <Group key={d.type} gap="sm" align="center" wrap="wrap">
-                        <Checkbox
-                          size="xs"
-                          label={d.label}
-                          checked={on}
-                          onChange={(e) => toggleAug(d.type, e.currentTarget.checked)}
-                          styles={{ root: { minWidth: 120 }, label: { fontWeight: 500 } }}
-                        />
-                        {on &&
-                          d.params.map((p) => (
-                            <NumberInput
-                              key={p.key}
-                              size="xs"
-                              w={118}
-                              label={p.label}
-                              min={p.min}
-                              max={p.max}
-                              step={p.step}
-                              decimalScale={Number.isInteger(p.step) ? 0 : 2}
-                              value={augParams[d.type]?.[p.key] ?? p.def}
-                              onChange={(v) => setParam(d.type, p.key, Number(v))}
-                            />
-                          ))}
-                        {on && d.params.length === 0 && (
-                          <Text size="xs" c="dimmed">
-                            {t('exp.noParams')}
-                          </Text>
-                        )}
-                      </Group>
-                    );
-                  })}
-                </Stack>
+                <AugmentationPicker
+                  selected={selAugs}
+                  params={augParams}
+                  onToggle={toggleAug}
+                  onParamChange={setParam}
+                  t={t}
+                />
                 <Group gap="sm" align="flex-end">
                   <SegmentedControl
                     size="xs"
@@ -674,12 +558,12 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
               {t('exp.reviewTitle')}
             </Text>
             <Stack gap={6}>
-              <Row label={t('exp.format')} value={datasetFormat} />
-              <Row
+              <SummaryRow label={t('exp.format')} value={datasetFormat} />
+              <SummaryRow
                 label={t('exp.dsType')}
                 value={kind === 'detection' ? t('exp.detection') : t('exp.recognition')}
               />
-              <Row
+              <SummaryRow
                 label={t('exp.splitMode')}
                 value={
                   splitMode === 'count'
@@ -687,8 +571,8 @@ export function ExportModal({ opened, onClose }: { opened: boolean; onClose: () 
                     : `${train}% / ${valid}% / ${test}%`
                 }
               />
-              <Row label={t('exp.imageFormat')} value={format} />
-              <Row
+              <SummaryRow label={t('exp.imageFormat')} value={format} />
+              <SummaryRow
                 label={t('exp.augment')}
                 value={
                   augment && selAugs.length ? (

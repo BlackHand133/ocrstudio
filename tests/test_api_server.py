@@ -324,6 +324,17 @@ def test_export_recognition_auto_orient(client, tmp_path):
     assert (rec_dir / "images" / "train" / "page1_0.png").exists()
 
 
+def test_export_rejects_zero_strata(client, tmp_path):
+    """n_bins=0 produced zero strata, so every image fell through the binning
+    loop and the export came back empty with no error. Reject it at the edge."""
+    ws_id = _make_ws_with_image(client, tmp_path)
+    r = client.post(
+        f"/api/workspaces/{ws_id}/export",
+        json={"kind": "detection", "split_mode": "stratified", "n_bins": 0},
+    )
+    assert r.status_code == 422, r.text
+
+
 def test_export_with_augmentation(client, tmp_path):
     ws_id = _make_ws_with_image(client, tmp_path)
     body = {

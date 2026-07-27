@@ -145,7 +145,9 @@ class ExportRequest(BaseModel):
     train_count: int = 0
     valid_count: int = 0
     test_count: int = 0
-    n_bins: int = 3  # stratified: number of strata
+    # stratified: number of strata. ge=1 so a 0 is a 422 here rather than an
+    # export that silently comes back with no images.
+    n_bins: int = Field(3, ge=1)
     group_by_image: bool = True  # recognition: keep an image's crops in one split
     seed: Optional[int] = None
     image_format: str = "png"  # "png" | "jpg"

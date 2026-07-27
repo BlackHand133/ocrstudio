@@ -250,22 +250,57 @@ class TestKnownRoughEdges:
         )
         assert "valid" not in result
 
-    @pytest.mark.xfail(
-        reason="numpy percentile on an empty list raises IndexError; reachable "
-               "from the web export path (server/services/export_split.py) "
-               "when a stratified export ends up with no eligible images",
-        raises=IndexError,
-        strict=True,
-    )
+
+# ===========================================================================
+# Degenerate input
+#
+# np.percentile raises on an empty sequence, and n_bins < 1 produced zero bins
+# so every item fell through the loop and vanished. Both are reachable from the
+# web export path (server/services/export_split.py).
+# ===========================================================================
+
+class TestDegenerateInput:
+
     def test_stratified_handles_empty_input(self):
         result = DataSplitter(seed=7).split_by_density_stratified([], {}, 70, 20, 10)
         assert flatten(result) == []
 
-    @pytest.mark.xfail(
-        reason="same empty-input crash in the length-stratified variant",
-        raises=IndexError,
-        strict=True,
-    )
     def test_length_stratified_handles_empty_input(self):
         result = DataSplitter(seed=7).split_by_length_stratified([], {}, 70, 20, 10)
         assert flatten(result) == []
+
+    @pytest.mark.parametrize("n_bins", [0, -1])
+    def test_stratified_rejects_impossible_bin_counts(self, n_bins):
+        """Zero bins used to swallow the entire dataset without complaint."""
+        source = items(6)
+        scores = {key: i for i, key in enumerate(source)}
+        with pytest.raises(ValueError, match="n_bins"):
+            DataSplitter(seed=7).split_by_density_stratified(
+                source, scores, 70, 20, 10, n_bins=n_bins
+            )
+
+    @pytest.mark.parametrize("n_bins", [0, -1])
+    def test_length_stratified_rejects_impossible_bin_counts(self, n_bins):
+        source = items(6)
+        lengths = {key: [i + 1] for i, key in enumerate(source)}
+        with pytest.raises(ValueError, match="n_bins"):
+            DataSplitter(seed=7).split_by_length_stratified(
+                source, lengths, 70, 20, 10, n_bins=n_bins
+            )
+
+    @pytest.mark.parametrize("n_bins", [1, 2, 3, 5, 10])
+    def test_every_item_survives_any_bin_count(self, n_bins):
+        source = items(12)
+        scores = {key: i for i, key in enumerate(source)}
+        result = DataSplitter(seed=7).split_by_density_stratified(
+            source, scores, 70, 20, 10, n_bins=n_bins
+        )
+        assert sorted(flatten(result)) == sorted(source)
+
+    def test_more_bins_than_items_still_keeps_everything(self):
+        source = items(3)
+        scores = {key: i for i, key in enumerate(source)}
+        result = DataSplitter(seed=7).split_by_density_stratified(
+            source, scores, 70, 20, 10, n_bins=10
+        )
+        assert sorted(flatten(result)) == sorted(source)

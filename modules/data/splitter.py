@@ -193,6 +193,47 @@ class DataSplitter:
         
         return result
     
+    @staticmethod
+    def _bin_by_score(items: List, scores: Dict, n_bins: int) -> List[List]:
+        """
+        จัด items เข้า bin ตาม percentile ของ score
+
+        Shared by both stratified splitters — they had this logic duplicated,
+        so a fix to one silently missed the other.
+
+        Every item lands in exactly one bin: items scoring at or above the top
+        percentile go to the last bin, and identical scores collapse the
+        percentile boundaries so everything falls there together.
+
+        Raises:
+            ValueError: if n_bins < 1, which would otherwise produce zero bins
+                and drop every item without a word.
+        """
+        if n_bins < 1:
+            raise ValueError(f"n_bins must be >= 1, got {n_bins}")
+
+        bins: List[List] = [[] for _ in range(n_bins)]
+        if not items:
+            return bins  # np.percentile raises on an empty sequence
+
+        values = [scores.get(item, 0) for item in items]
+        percentiles = np.percentile(values, np.linspace(0, 100, n_bins + 1))
+
+        for item in items:
+            v = scores.get(item, 0)
+            for i in range(n_bins):
+                in_band = percentiles[i] <= v < percentiles[i + 1]
+                at_top = i == n_bins - 1 and v >= percentiles[-1]
+                if in_band or at_top:
+                    bins[i].append(item)
+                    break
+            else:
+                # Below the lowest boundary (only reachable through float
+                # rounding). Keep it rather than dropping it on the floor.
+                bins[0].append(item)
+
+        return bins
+
     def split_by_density_stratified(
         self,
         items: List,
@@ -206,26 +247,18 @@ class DataSplitter:
         แบ่งข้อมูลตามความหนาแน่น (stratified)
         แต่ละ bin จะถูกแบ่งตามสัดส่วนเดียวกัน
         """
-        # แบ่ง items เป็น bins ตาม density
-        densities = [density_scores.get(item, 0) for item in items]
-        percentiles = np.percentile(densities, np.linspace(0, 100, n_bins + 1))
-        
-        bins = [[] for _ in range(n_bins)]
-        for item in items:
-            d = density_scores.get(item, 0)
-            for i in range(n_bins):
-                if percentiles[i] <= d < percentiles[i + 1] or (i == n_bins - 1 and d == percentiles[-1]):
-                    bins[i].append(item)
-                    break
-        
+        bins = self._bin_by_score(items, density_scores, n_bins)
+
         # แบ่งแต่ละ bin ตามสัดส่วน
         result = {'train': [], 'test': [], 'valid': []}
-        
+
         for bin_items in bins:
+            if not bin_items:
+                continue
             split = self.split_by_percentage(bin_items, train_pct, test_pct, valid_pct)
             for key, values in split.items():
                 result[key].extend(values)
-        
+
         # ลบ key ที่ว่าง
         return {k: v for k, v in result.items() if v}
     
@@ -249,25 +282,17 @@ class DataSplitter:
                 avg_lengths[item] = np.mean(length_data[item])
             else:
                 avg_lengths[item] = 0
-        
-        # แบ่งเป็น bins
-        lengths = [avg_lengths[item] for item in items]
-        percentiles = np.percentile(lengths, np.linspace(0, 100, n_bins + 1))
-        
-        bins = [[] for _ in range(n_bins)]
-        for item in items:
-            length = avg_lengths[item]
-            for i in range(n_bins):
-                if percentiles[i] <= length < percentiles[i + 1] or (i == n_bins - 1 and length == percentiles[-1]):
-                    bins[i].append(item)
-                    break
-        
+
+        bins = self._bin_by_score(items, avg_lengths, n_bins)
+
         # แบ่งแต่ละ bin
         result = {'train': [], 'test': [], 'valid': []}
-        
+
         for bin_items in bins:
+            if not bin_items:
+                continue
             split = self.split_by_percentage(bin_items, train_pct, test_pct, valid_pct)
             for key, values in split.items():
                 result[key].extend(values)
-        
+
         return {k: v for k, v in result.items() if v}

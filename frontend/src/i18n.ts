@@ -15,6 +15,9 @@ const en: Dict = {
   'hdr.settings': 'OCR settings',
   'hdr.switch': 'Switch workspace',
   'hdr.theme': 'Toggle light / dark',
+  'hdr.uiLanguage': 'Interface language',
+  'hdr.toggleList': 'Toggle image list',
+  'hdr.togglePanel': 'Toggle annotation panel',
   'common.saved': 'Saved',
   'common.saveFailed': 'Save failed',
   // image list
@@ -26,6 +29,7 @@ const en: Dict = {
   'list.selAll': 'All',
   'list.selNone': 'None',
   'list.missing': '{n} image(s) missing — relink',
+  'list.includeNamed': 'Include {n} in export',
   'list.noImages': 'No images.',
   // annotation panel
   'panel.runOcr': 'Run OCR',
@@ -148,6 +152,8 @@ const en: Dict = {
   'confirm.delVersion': 'Delete version "{n}"? This cannot be undone.',
   'confirm.delWs': 'Delete workspace "{n}" and all its annotations? This cannot be undone.',
   'wp.delete': 'Delete workspace',
+  'wp.deleteNamed': 'Delete workspace {n}',
+  'wp.open': 'Open workspace {n}',
   'exp.exported': 'Exported {n} item(s)',
   'exp.exportedTitle': 'Exported {n} {kind} item(s)',
   'exp.savedTo': 'Saved to {dir}',
@@ -174,6 +180,32 @@ const en: Dict = {
   'set.save': 'Save',
   'set.applyNote': 'Applies to the selected profile and reloads the OCR engine on the next detection.',
   'set.savedToast': 'Settings saved — OCR reloads on next run',
+  // engine status
+  'set.engine': 'Engine',
+  'set.engineLoaded': 'Running',
+  'set.engineIdle': 'Not loaded yet',
+  'set.engineIdleHint': 'Loads on the first detection.',
+  'set.enginePending': 'Pending on next load',
+  'set.engineWarnings': 'Applied on load',
+  // version × language guarding
+  // Rendered after the version name ("PP-OCRv6 — no model for ..."), so it must
+  // not repeat {version} itself.
+  'set.versionUnsupported': 'no model for “{lang}”',
+  // Shown while no version is pinned, so it must read as a suggestion — "Use X
+  // instead" implies the current choice is wrong when there is no choice yet.
+  'set.versionRecommended': 'Recommended for “{lang}”: {version}',
+  'set.versionAuto': 'Default (engine picks)',
+  // image size
+  'set.preprocess': 'Pre-processing',
+  'set.maxImageSize': 'Max image size before OCR',
+  'set.maxImageSizeDesc': 'Longest side in pixels. 0 = never resize.',
+  'set.maxImageSizeWarn': 'Small values erase thin marks such as Thai tone marks.',
+  // Thai preset
+  'set.presets': 'Presets',
+  'set.presetThai': 'Thai (preserve tone marks)',
+  'set.presetThaiDesc': 'Wider boxes and no downscaling, so vowels and tone marks survive detection.',
+  'set.presetApplied': 'Preset applied — review, then save',
+  'set.presetDefaults': 'Reset to defaults',
   // version menu
   'ver.versions': 'Versions',
   'ver.new': 'New version…',
@@ -200,6 +232,9 @@ const th: Dict = {
   'hdr.settings': 'ตั้งค่า OCR',
   'hdr.switch': 'สลับ workspace',
   'hdr.theme': 'สลับโหมดสว่าง / มืด',
+  'hdr.uiLanguage': 'ภาษาของหน้าจอ',
+  'hdr.toggleList': 'เปิด/ปิดรายการรูป',
+  'hdr.togglePanel': 'เปิด/ปิดแผงคำอธิบาย',
   'common.saved': 'บันทึกแล้ว',
   'common.saveFailed': 'บันทึกไม่สำเร็จ',
   'list.search': 'ค้นหาชื่อไฟล์…',
@@ -210,6 +245,7 @@ const th: Dict = {
   'list.selAll': 'เลือกหมด',
   'list.selNone': 'ไม่เลือก',
   'list.missing': 'ขาดรูป {n} ไฟล์ — เชื่อมใหม่',
+  'list.includeNamed': 'รวม {n} ในการ export',
   'list.noImages': 'ไม่มีรูป',
   'panel.runOcr': 'รัน OCR',
   'panel.ocrThis': 'รูปนี้',
@@ -328,6 +364,8 @@ const th: Dict = {
   'confirm.delVersion': 'ลบเวอร์ชัน "{n}"? ย้อนกลับไม่ได้',
   'confirm.delWs': 'ลบ workspace "{n}" และ annotation ทั้งหมด? ย้อนกลับไม่ได้',
   'wp.delete': 'ลบ workspace',
+  'wp.deleteNamed': 'ลบ workspace {n}',
+  'wp.open': 'เปิด workspace {n}',
   'exp.exported': 'ส่งออก {n} รายการ',
   'exp.exportedTitle': 'ส่งออก {n} รายการ ({kind})',
   'exp.savedTo': 'บันทึกที่ {dir}',
@@ -353,6 +391,28 @@ const th: Dict = {
   'set.save': 'บันทึก',
   'set.applyNote': 'มีผลกับโปรไฟล์ที่เลือก และโหลด OCR ใหม่ตอน detect ครั้งถัดไป',
   'set.savedToast': 'บันทึกแล้ว — OCR จะโหลดใหม่ตอนรันครั้งถัดไป',
+  // engine status
+  'set.engine': 'เอนจิน',
+  'set.engineLoaded': 'กำลังทำงาน',
+  'set.engineIdle': 'ยังไม่ได้โหลด',
+  'set.engineIdleHint': 'จะโหลดตอน detect ครั้งแรก',
+  'set.enginePending': 'จะใช้ตอนโหลดครั้งถัดไป',
+  'set.engineWarnings': 'ปรับให้อัตโนมัติตอนโหลด',
+  // version × language guarding
+  'set.versionUnsupported': 'ไม่มีโมเดลสำหรับ “{lang}”',
+  'set.versionRecommended': 'แนะนำสำหรับ “{lang}”: {version}',
+  'set.versionAuto': 'ค่าเริ่มต้น (ให้เอนจินเลือก)',
+  // image size
+  'set.preprocess': 'ประมวลผลก่อน OCR',
+  'set.maxImageSize': 'ขนาดภาพสูงสุดก่อนเข้า OCR',
+  'set.maxImageSizeDesc': 'ด้านที่ยาวที่สุด (พิกเซล) — 0 = ไม่ย่อเลย',
+  'set.maxImageSizeWarn': 'ค่าน้อยเกินไปจะทำให้เส้นบาง ๆ เช่น วรรณยุกต์ไทย หายไป',
+  // Thai preset
+  'set.presets': 'ค่าสำเร็จรูป',
+  'set.presetThai': 'ไทย (รักษาวรรณยุกต์)',
+  'set.presetThaiDesc': 'ขยายกรอบให้กว้างขึ้นและไม่ย่อภาพ เพื่อไม่ให้สระและวรรณยุกต์หลุดตอน detect',
+  'set.presetApplied': 'ใส่ค่าให้แล้ว — ตรวจดูแล้วกดบันทึก',
+  'set.presetDefaults': 'คืนค่าเริ่มต้น',
   'ver.versions': 'เวอร์ชัน',
   'ver.new': 'เวอร์ชันใหม่…',
   'ver.newTitle': 'เวอร์ชันใหม่',

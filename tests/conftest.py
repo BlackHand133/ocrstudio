@@ -45,6 +45,10 @@ def minimal_config_yaml(tmp_path):
     config_file = config_dir / "config.yaml"
 
     import yaml
+    # Deliberately written with the PaddleOCR 2.x parameter names: every test
+    # that builds a ConfigManager then exercises the 3.x migration in
+    # ConfigManager._migrate_deprecated_params(). Assertions below expect the
+    # migrated (text_det_*) spelling.
     config = {
         "default_profile": "cpu",
         "profiles": {

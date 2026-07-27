@@ -14,6 +14,7 @@ import {
   Loader,
   Center,
   Tooltip,
+  UnstyledButton,
 } from '@mantine/core';
 import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
 import { notifications } from '@mantine/notifications';
@@ -71,7 +72,9 @@ export function WorkspacePicker() {
 
         <Card withBorder radius="md" padding="lg">
           <Stack gap="sm">
-            <Text fw={600}>
+            {/* component="div": Text renders a <p>, and a <Group> div inside a
+                <p> is invalid nesting that React warns about. */}
+            <Text component="div" fw={600}>
               <Group gap={6}>
                 <IconPlus size={18} /> {t('wp.newWs')}
               </Group>
@@ -112,6 +115,10 @@ export function WorkspacePicker() {
         ) : workspaces && workspaces.length ? (
           <Stack gap="xs">
             {workspaces.map((w) => (
+              // The card itself stays a plain div: clicking anywhere on it opens
+              // the workspace (mouse convenience), while the real <button> inside
+              // is what keyboard and screen-reader users land on. Making the card
+              // itself a button would nest the delete button inside it.
               <Card
                 key={w.id}
                 withBorder
@@ -121,22 +128,31 @@ export function WorkspacePicker() {
                 onClick={() => openWorkspace(w.id)}
               >
                 <Group justify="space-between">
-                  <Group gap="sm">
-                    <IconFolder size={20} />
-                    <div>
-                      <Text fw={500}>{w.name}</Text>
-                      <Text size="xs" c="dimmed">
-                        {w.id}
-                      </Text>
-                    </div>
-                  </Group>
+                  <UnstyledButton
+                    onClick={(e) => {
+                      e.stopPropagation(); // card's onClick would open it twice
+                      openWorkspace(w.id);
+                    }}
+                    aria-label={t('wp.open', { n: w.name })}
+                    style={{ flex: 1, textAlign: 'left' }}
+                  >
+                    <Group gap="sm">
+                      <IconFolder size={20} />
+                      <div>
+                        <Text fw={500}>{w.name}</Text>
+                        <Text size="xs" c="dimmed">
+                          {w.id}
+                        </Text>
+                      </div>
+                    </Group>
+                  </UnstyledButton>
                   <Group gap="xs">
                     <Badge variant="light">{w.current_version}</Badge>
                     <Tooltip label={t('wp.delete')}>
                       <ActionIcon
-                        component="div"
                         variant="subtle"
                         color="red"
+                        aria-label={t('wp.deleteNamed', { n: w.name })}
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteWs(w.id, w.name);

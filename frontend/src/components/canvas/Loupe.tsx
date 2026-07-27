@@ -17,9 +17,9 @@ export function Loupe({ img, cursor }: { img: HTMLImageElement; cursor: { x: num
         height: SIZE,
         borderRadius: 8,
         overflow: 'hidden',
-        border: '2px solid #adb5bd',
+        border: '2px solid var(--mantine-color-default-border)',
         boxShadow: '0 1px 6px rgba(0,0,0,0.25)',
-        background: '#fff',
+        background: 'var(--mantine-color-body)',
         pointerEvents: 'none',
       }}
     >

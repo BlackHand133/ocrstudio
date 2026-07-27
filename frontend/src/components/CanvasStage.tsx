@@ -354,7 +354,9 @@ export function CanvasStage() {
         width: '100%',
         height: '100%',
         overflow: 'hidden',
-        background: '#e9ecef',
+        // Themed: a fixed light grey behind the image is a glaring panel in
+        // dark mode, and annotating is a long-session task.
+        background: 'var(--app-surface-sunken)',
         cursor: imageKey && tool !== 'select' ? 'crosshair' : 'default',
       }}
     >

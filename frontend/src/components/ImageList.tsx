@@ -10,6 +10,7 @@ import {
   Stack,
   Text,
   TextInput,
+  UnstyledButton,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconAlertTriangle, IconSearch } from '@tabler/icons-react';
@@ -177,6 +178,7 @@ export function ImageList() {
                   <Checkbox
                     size="xs"
                     checked={included}
+                    aria-label={t('list.includeNamed', { n: img.key })}
                     onClick={(e) => e.stopPropagation()}
                     onChange={() => toggleExcluded(img.key)}
                   />
@@ -188,12 +190,30 @@ export function ImageList() {
                       fit="contain"
                       radius="sm"
                       loading="lazy"
-                      style={{ background: '#f1f3f5', flex: '0 0 auto' }}
+                      // Decorative: the filename sits right next to it.
+                      alt=""
+                      // Themed token, not a fixed grey: a light placeholder
+                      // glares against the dark surface behind it.
+                      style={{
+                        background: 'var(--app-surface-sunken)',
+                        flex: '0 0 auto',
+                      }}
                     />
                   )}
-                  <Text size="sm" truncate="end" style={{ flex: 1, minWidth: 0 }} title={img.key}>
-                    {img.key}
-                  </Text>
+                  {/* The row div handles mouse clicks; this button is what
+                      keyboard users tab to and what screen readers announce. */}
+                  <UnstyledButton
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openImage(img.key);
+                    }}
+                    aria-current={active ? 'true' : undefined}
+                    style={{ flex: 1, minWidth: 0, textAlign: 'left' }}
+                  >
+                    <Text size="sm" truncate="end" title={img.key}>
+                      {img.key}
+                    </Text>
+                  </UnstyledButton>
                   {img.annotation_count > 0 && (
                     <Badge size="xs" variant="filled" color="green">
                       {img.annotation_count}

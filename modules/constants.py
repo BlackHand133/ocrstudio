@@ -87,13 +87,23 @@ CONFIG_PATH_LOGS = "paths.logs"
 CONFIG_PATH_CACHE = "paths.cache"
 
 # ===== OCR Constants =====
-# Default PaddleOCR parameters
+# Default PaddleOCR parameters (PaddleOCR 3.x spelling — see
+# modules.core.ocr.compat for the 2.x aliases that get rewritten on load).
 DEFAULT_OCR_LANG = "th"
-DEFAULT_DET_DB_BOX_THRESH = 0.7
-DEFAULT_DET_DB_UNCLIP_RATIO = 1.5
+DEFAULT_TEXT_DET_BOX_THRESH = 0.7
+DEFAULT_TEXT_DET_UNCLIP_RATIO = 1.5
 DEFAULT_USE_DOC_ORIENTATION = False
 DEFAULT_USE_DOC_UNWARPING = False
 DEFAULT_USE_TEXTLINE_ORIENTATION = False
+
+# Longest side an image is downscaled to before OCR. Thai tone marks are only a
+# couple of pixels thick, so aggressive downscaling drops them entirely; 0
+# disables the resize.
+DEFAULT_MAX_IMAGE_SIZE = 2500
+
+# Deprecated aliases, kept so existing imports keep working.
+DEFAULT_DET_DB_BOX_THRESH = DEFAULT_TEXT_DET_BOX_THRESH
+DEFAULT_DET_DB_UNCLIP_RATIO = DEFAULT_TEXT_DET_UNCLIP_RATIO
 
 # ===== Export Constants =====
 # Dataset split ratios

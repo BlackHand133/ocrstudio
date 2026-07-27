@@ -191,7 +191,9 @@ const en: Dict = {
   // Rendered after the version name ("PP-OCRv6 — no model for ..."), so it must
   // not repeat {version} itself.
   'set.versionUnsupported': 'no model for “{lang}”',
-  'set.versionUseInstead': 'Use {version} instead.',
+  // Shown while no version is pinned, so it must read as a suggestion — "Use X
+  // instead" implies the current choice is wrong when there is no choice yet.
+  'set.versionRecommended': 'Recommended for “{lang}”: {version}',
   'set.versionAuto': 'Default (engine picks)',
   // image size
   'set.preprocess': 'Pre-processing',
@@ -398,7 +400,7 @@ const th: Dict = {
   'set.engineWarnings': 'ปรับให้อัตโนมัติตอนโหลด',
   // version × language guarding
   'set.versionUnsupported': 'ไม่มีโมเดลสำหรับ “{lang}”',
-  'set.versionUseInstead': 'ใช้ {version} แทน',
+  'set.versionRecommended': 'แนะนำสำหรับ “{lang}”: {version}',
   'set.versionAuto': 'ค่าเริ่มต้น (ให้เอนจินเลือก)',
   // image size
   'set.preprocess': 'ประมวลผลก่อน OCR',

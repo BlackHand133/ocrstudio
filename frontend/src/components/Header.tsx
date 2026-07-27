@@ -1,5 +1,6 @@
 import {
   ActionIcon,
+  Box,
   Burger,
   Button,
   Group,
@@ -93,8 +94,15 @@ export function Header({ navOpened, asideOpened, onToggleNav, onToggleAside }: H
     <>
       <ExportModal opened={exportOpened} onClose={closeExport} />
       <SettingsModal opened={settingsOpened} onClose={closeSettings} />
-      <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+      {/* gap keeps the two sides from touching: space-between alone lets the
+          truncated workspace name butt right up against the first action. */}
+      <Group h="100%" px="md" gap="sm" justify="space-between" wrap="nowrap">
+        {/* flex:1 + minWidth:0 so this side absorbs the leftover width and
+            truncates inside it; the action group opposite must not shrink or it
+            starts overlapping this one. overflow:hidden is the backstop — a
+            nowrap child otherwise renders past this box and lands on top of
+            the buttons. */}
+        <Group gap="sm" wrap="nowrap" style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
           <Burger
             opened={navOpened}
             onClick={onToggleNav}
@@ -103,17 +111,27 @@ export function Header({ navOpened, asideOpened, onToggleNav, onToggleAside }: H
             aria-label={t('hdr.toggleList')}
           />
           {/* The product name is the first thing to go when space is tight —
-              the workspace name is what tells the user where they are. */}
-          <Text fw={700} visibleFrom="xs">
+              the workspace name is what tells the user where they are. Held
+              back to md: at tablet width it wraps to two lines and squeezes the
+              workspace name, and nowrap alone just moves the squeeze. */}
+          <Text fw={700} visibleFrom="md" style={{ whiteSpace: 'nowrap' }}>
             OCR Studio
           </Text>
           {ws && (
             <>
-              <Text visibleFrom="xs">·</Text>
-              <Text fw={500} truncate="end" style={{ minWidth: 0 }}>
+              <Text visibleFrom="md">·</Text>
+              {/* miw, not just minWidth:0 — the nowrap action group on the right
+                  wins the flex negotiation and squeezes this to 0px on a phone,
+                  leaving a version chip with nothing to attach it to. A floor
+                  makes it truncate instead of vanishing. */}
+              <Text fw={500} truncate="end" miw={64} style={{ flexShrink: 1 }}>
                 {ws.name}
               </Text>
-              <VersionMenu workspaceId={workspaceId!} current={ws.current_version} />
+              {/* No room for it beside the name at phone widths, and a clipped
+                  dropdown reads as broken. Version switching is a desktop task. */}
+              <Box visibleFrom="sm">
+                <VersionMenu workspaceId={workspaceId!} current={ws.current_version} />
+              </Box>
               <Text size="xs" c="dimmed" visibleFrom="md">
                 {t('hdr.annotated', { a: ws.annotated_count, b: ws.image_count })}
               </Text>
@@ -121,7 +139,7 @@ export function Header({ navOpened, asideOpened, onToggleNav, onToggleAside }: H
           )}
         </Group>
 
-        <Group gap="xs" wrap="nowrap">
+        <Group gap="xs" wrap="nowrap" style={{ flexShrink: 0 }}>
           <SegmentedControl
             size="xs"
             aria-label={t('hdr.uiLanguage')}
@@ -133,6 +151,22 @@ export function Header({ navOpened, asideOpened, onToggleNav, onToggleAside }: H
               { label: 'ไทย', value: 'th' },
             ]}
           />
+          {/* The two-option control does not fit on a phone, but hiding it
+              outright strands someone who opens the app on one — this is a
+              Thai-first tool and the default is English. Toggle instead,
+              labelled with the language it switches to. */}
+          <Tooltip label={t('hdr.uiLanguage')}>
+            <ActionIcon
+              variant="default"
+              hiddenFrom="sm"
+              aria-label={t('hdr.uiLanguage')}
+              onClick={() => setLang(lang === 'en' ? 'th' : 'en')}
+            >
+              <Text size="xs" fw={700}>
+                {lang === 'en' ? 'ไทย' : 'EN'}
+              </Text>
+            </ActionIcon>
+          </Tooltip>
           {/* Tooltips are hover-only affordances — icon-only buttons still need
               an aria-label or they are announced as just "button". */}
           <Tooltip label={t('hdr.theme')}>
@@ -145,9 +179,14 @@ export function Header({ navOpened, asideOpened, onToggleNav, onToggleAside }: H
             </ActionIcon>
           </Tooltip>
 
+          {/* Dropped below sm: nine actions plus two burgers leave the workspace
+              name no room at 390px, and it overflows into them. Undo/redo are
+              the most mouse-bound of the set — this is not a phone annotation
+              tool — so they are what gives way. */}
           <Tooltip label={t('hdr.undo')}>
             <ActionIcon
               variant="default"
+              visibleFrom="sm"
               aria-label={t('hdr.undo')}
               disabled={!canUndo}
               onClick={undo}
@@ -158,6 +197,7 @@ export function Header({ navOpened, asideOpened, onToggleNav, onToggleAside }: H
           <Tooltip label={t('hdr.redo')}>
             <ActionIcon
               variant="default"
+              visibleFrom="sm"
               aria-label={t('hdr.redo')}
               disabled={!canRedo}
               onClick={redo}

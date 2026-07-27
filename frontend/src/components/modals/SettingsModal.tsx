@@ -244,7 +244,7 @@ export function SettingsModal({ opened, onClose }: { opened: boolean; onClose: (
               clearable
               description={
                 firstSupportedVersion && ocrVersion == null
-                  ? t('set.versionUseInstead', { version: firstSupportedVersion })
+                  ? t('set.versionRecommended', { version: firstSupportedVersion, lang })
                   : undefined
               }
             />

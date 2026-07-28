@@ -29,28 +29,19 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from thai_quality import force_utf8_output  # noqa: E402
+from workspace_versions import next_version_path, stamp_version  # noqa: E402
 
 force_utf8_output()
 
 IGNORE_MARKER = "###"
 
 
-def next_version_path(workspace_dir):
-    """Next number above the highest in use, so the new file never sorts
-    before the version it was derived from."""
-    highest = 0
-    for path in workspace_dir.glob("v*.json"):
-        stem = path.stem
-        if stem.startswith("v") and stem[1:].isdigit():
-            highest = max(highest, int(stem[1:]))
-    return workspace_dir / f"v{highest + 1}.json"
 
 
 def main():
@@ -123,10 +114,12 @@ def main():
         ann["normalized"] = True
 
     out = next_version_path(ws)
-    meta = data.setdefault("metadata", {})
-    meta["derived_from"] = args.version
-    meta["normalized_boxes"] = len(hits)
-    meta["generated_at"] = datetime.now().isoformat(timespec="seconds")
+    stamp_version(
+        data, args.version,
+        f"{args.version} with {len(hits)} label(s) normalized to "
+        f"{args.to!r} (scripts/normalize_labels.py)",
+        normalized_boxes=len(hits),
+    )
     out.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"\nWrote {out.name}. {version_file.name} is unchanged.")
     return 0

@@ -18,6 +18,14 @@ that come back as plain Latin noise, which is most of them.
     # write the result to a new version, leaving the original untouched
     python scripts/refix_rotated_boxes.py --images A117.jpg --write
 
+    # check the changes by eye first — opens as one page in a browser
+    python scripts/refix_rotated_boxes.py --all --review-queue review/
+
+Use --review-queue before trusting a run. Confidence separates noise from text
+but not a correct reading from a confident guess: in a 28-box sweep two got
+through, one of them a correctly-oriented box holding nothing but the vowel
+marks floating above a word, scored 0.97.
+
 Needs paddleocr. Without it locally, run in the app image:
 
     docker run --rm -v "%cd%:/work" -w /work ocrstudio-web:latest \
@@ -115,6 +123,94 @@ def crop_box(img, points, pad_ratio=0.25):
     return crop
 
 
+def review_crop(img, points, pad_ratio=0.9):
+    """Crop with generous context and the box outlined, both ways up.
+
+    Returns (upright, rotated). The pair is the point: a box that was never
+    upside down looks wrong on the right-hand side, which is the one thing a
+    confidence score cannot tell you. One accepted change in a 28-box run
+    turned out to be a correctly-oriented crop containing only the vowel marks
+    floating above a word — high confidence, no text in it at all.
+    """
+    pts = np.array(points, dtype=np.int32)
+    x, y, w, h = cv2.boundingRect(pts)
+    marked = img.copy()
+    cv2.polylines(marked, [pts], True, (0, 0, 255), max(2, int(max(w, h) * 0.03)))
+    pad = max(30, int(pad_ratio * max(w, h)))
+    y0, y1 = max(0, y - pad), min(img.shape[0], y + h + pad)
+    x0, x1 = max(0, x - pad), min(img.shape[1], x + w + pad)
+    crop = marked[y0:y1, x0:x1]
+    if crop.size == 0:
+        return None, None
+    scale = max(1, int(320 / max(crop.shape[:2])))
+    if scale > 1:
+        crop = cv2.resize(crop, (crop.shape[1] * scale, crop.shape[0] * scale),
+                          interpolation=cv2.INTER_CUBIC)
+    return crop, cv2.rotate(crop, cv2.ROTATE_180)
+
+
+REVIEW_CSS = """
+body{font:14px system-ui,sans-serif;margin:0;padding:24px;background:#f6f6f4;color:#2c2c2a}
+h1{font-size:18px;margin:0 0 4px}
+.sub{color:#5f5e5a;margin-bottom:20px}
+.card{background:#fff;border:1px solid #d3d1c7;border-radius:8px;padding:14px;margin-bottom:14px}
+.card.rejected{border-color:#f7c1c1;background:#fffafa}
+.hdr{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:10px}
+.id{font-weight:600}
+.tag{font-size:12px;padding:2px 8px;border-radius:10px;background:#eaf3de;color:#3b6d11}
+.tag.no{background:#fcebeb;color:#a32d2d}
+.pair{display:flex;gap:14px;flex-wrap:wrap}
+figure{margin:0}
+figcaption{font-size:12px;color:#5f5e5a;margin-top:4px}
+img{max-width:100%;border:1px solid #d3d1c7;border-radius:4px;display:block}
+table{border-collapse:collapse;margin-top:10px;font-size:13px}
+td{padding:2px 10px 2px 0;vertical-align:top}
+td.k{color:#5f5e5a;white-space:nowrap}
+code{background:#f1efe8;padding:1px 5px;border-radius:3px}
+"""
+
+
+def write_review_queue(out_dir, entries, version, accepted, rejected):
+    """Write the crops plus a single page that shows them all."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for n, e in enumerate(entries, 1):
+        stem = f"{n:03d}_{e['key'].replace('.', '_')}_{e['index']}"
+        cv2.imwrite(str(out_dir / f"{stem}_up.png"), e["upright"])
+        cv2.imwrite(str(out_dir / f"{stem}_rot.png"), e["rotated"])
+        cls = "card" if e["accepted"] else "card rejected"
+        tag = ('<span class="tag">accepted</span>' if e["accepted"]
+               else f'<span class="tag no">rejected: {esc(e["reason"])}</span>')
+        rows.append(f"""<div class="{cls}">
+  <div class="hdr"><span class="id">{esc(e['key'])} &middot; box #{e['index']}</span>{tag}</div>
+  <div class="pair">
+    <figure><img src="{stem}_up.png" alt=""><figcaption>as stored</figcaption></figure>
+    <figure><img src="{stem}_rot.png" alt=""><figcaption>rotated 180&deg;</figcaption></figure>
+  </div>
+  <table>
+    <tr><td class="k">current label</td><td><code>{esc(e['old'])}</code></td></tr>
+    <tr><td class="k">upright read</td><td><code>{esc(e['up_text'])}</code> &nbsp;{e['up_score']:.2f}</td></tr>
+    <tr><td class="k">rotated read</td><td><code>{esc(e['dn_text'])}</code> &nbsp;{e['dn_score']:.2f}</td></tr>
+  </table>
+</div>""")
+
+    html = f"""<!doctype html><meta charset="utf-8">
+<title>Rotation review &middot; {esc(version)}</title>
+<style>{REVIEW_CSS}</style>
+<h1>Rotation review &mdash; {esc(version)}</h1>
+<div class="sub">{accepted} accepted, {rejected} rejected.
+Check the right-hand image actually reads the right way up: a correctly
+oriented box looks wrong there, and no confidence score catches that.</div>
+{''.join(rows)}"""
+    (out_dir / "index.html").write_text(html, encoding="utf-8")
+    return out_dir / "index.html"
+
+
+def esc(s):
+    return (str(s).replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace('"', "&quot;"))
+
+
 def read(ocr, image):
     """Return (text, mean_confidence, thai_char_count)."""
     try:
@@ -154,6 +250,9 @@ def main():
                     help=f"confidence the rotated read must win by (default {MIN_SCORE_GAIN})")
     ap.add_argument("--min-score", type=float, default=MIN_ABSOLUTE_SCORE,
                     help=f"absolute confidence floor (default {MIN_ABSOLUTE_SCORE})")
+    ap.add_argument("--review-queue", metavar="DIR",
+                    help="write every changed and rejected box to DIR as a "
+                         "browsable page, both ways up, for checking by eye")
     args = ap.parse_args()
 
     ws = REPO_ROOT / "workspaces" / args.workspace
@@ -179,6 +278,8 @@ def main():
 
     ocr = build_engine()
     changed_total = 0
+    rejected_total = 0
+    review = [] if args.review_queue else None
 
     for key in targets:
         path = images_dir / key
@@ -206,6 +307,21 @@ def main():
             up_text, up_score, up_thai = read(ocr, crop)
             dn_text, dn_score, dn_thai = read(ocr, cv2.rotate(crop, cv2.ROTATE_180))
 
+            def queue(accepted, reason=""):
+                """Record this box for the review page, if one was asked for."""
+                if review is None:
+                    return
+                up_img, dn_img = review_crop(img, ann.get("points") or [])
+                if up_img is None:
+                    return
+                review.append({
+                    "key": key, "index": i, "old": old,
+                    "up_text": up_text, "up_score": up_score,
+                    "dn_text": dn_text, "dn_score": dn_score,
+                    "upright": up_img, "rotated": dn_img,
+                    "accepted": accepted, "reason": reason,
+                })
+
             if not dn_text:
                 continue
             if dn_score < args.min_score:
@@ -214,13 +330,16 @@ def main():
                 continue
             if not plausible_for_corpus(dn_text):
                 rejected.append((i, old, dn_text, dn_score, "foreign script"))
+                queue(False, "foreign script")
                 continue
             # Never trade a Thai reading for one without Thai: on this corpus
             # that is the model transliterating rather than reading.
             if up_thai and not dn_thai:
                 rejected.append((i, old, dn_text, dn_score, "would drop Thai"))
+                queue(False, "would drop Thai")
                 continue
 
+            queue(True)
             print(f"  #{i:2}  {up_score:.2f} -> {dn_score:.2f}   thai {up_thai} -> {dn_thai}")
             print(f"       was: {old!r}")
             print(f"       now: {dn_text!r}")
@@ -234,8 +353,18 @@ def main():
             print(f"  #{i:2}  rejected ({why}, {score:.2f}): {old!r} -> {new!r}")
         print(f"  {changed_here} accepted, {len(rejected)} rejected")
         changed_total += changed_here
+        rejected_total += len(rejected)
 
     print(f"\n{changed_total} box(es) would change across {len(targets)} image(s)")
+
+    if review is not None:
+        if review:
+            page = write_review_queue(Path(args.review_queue), review,
+                                      args.version, changed_total, rejected_total)
+            print(f"Review queue: {page} ({len(review)} box(es)) — open it before "
+                  f"trusting the result.")
+        else:
+            print("Review queue: nothing to review.")
 
     if not args.write:
         print("\nReport only. Re-run with --write to save to a new version.")

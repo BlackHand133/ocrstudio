@@ -258,3 +258,7 @@ frontend/vite.config.d.ts
 # Keep the web-backend tests tracked despite the test_*.py rule above
 !tests/test_*.py
 !tests/**/test_*.py
+
+# review queues produced by scripts/refix_rotated_boxes.py --review-queue
+.review/
+review/

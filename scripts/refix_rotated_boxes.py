@@ -30,9 +30,7 @@ so you can compare the two in the app before switching.
 
 import argparse
 import json
-import shutil
 import sys
-from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -42,6 +40,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from thai_quality import force_utf8_output, is_thai  # noqa: E402
+from workspace_versions import next_version_path, stamp_version  # noqa: E402
 
 force_utf8_output()
 
@@ -134,18 +133,6 @@ def read(ocr, image):
     return text, mean, sum(1 for c in text if is_thai(c))
 
 
-def next_version_path(workspace_dir):
-    """Return the next version number *above* the highest in use.
-
-    Not the lowest free one: a workspace holding v1 and v4 would get a "v2"
-    containing data derived from v4, which reads as older than its own source.
-    """
-    highest = 0
-    for path in workspace_dir.glob("v*.json"):
-        stem = path.stem
-        if stem.startswith("v") and stem[1:].isdigit():
-            highest = max(highest, int(stem[1:]))
-    return workspace_dir / f"v{highest + 1}.json"
 
 
 def main():
@@ -258,9 +245,12 @@ def main():
         return 0
 
     out = next_version_path(ws)
-    data.setdefault("metadata", {})["derived_from"] = args.version
-    data["metadata"]["rotated_boxes_fixed"] = changed_total
-    data["metadata"]["generated_at"] = datetime.now().isoformat(timespec="seconds")
+    stamp_version(
+        data, args.version,
+        f"{args.version} with {changed_total} upside-down box(es) re-read "
+        f"(scripts/refix_rotated_boxes.py)",
+        rotated_boxes_fixed=changed_total,
+    )
     out.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"\nWrote {out.name}. {version_file.name} is unchanged — open both in the "
           f"app and compare before switching the workspace over.")

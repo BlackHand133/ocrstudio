@@ -5,9 +5,11 @@ PyQt5>=5.15.0,<6.0.0
 # API, and compat.py reads a private 3.x resolver.
 paddlepaddle>=3.0.0,<4
 paddleocr>=3.0.0,<4
-opencv-python>=4.8.0
-Pillow>=10.0.0
+# The next major of each library below may change APIs this app calls. Capping
+# it makes that major arrive as a Dependabot PR that CI tests, instead of
+# silently at build time, which is how OpenCV 5 came in.
+opencv-python>=4.8.0,<6
+Pillow>=10.0.0,<13
 numpy>=1.24.0,<3.0.0
-PyYAML>=6.0.0
-Shapely>=2.0.0
-imgaug>=0.4.0
+PyYAML>=6.0.0,<7
+Shapely>=2.0.0,<3

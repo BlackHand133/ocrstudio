@@ -126,7 +126,9 @@ Ajan/
 - **NumPy**: การคำนวณเชิงตัวเลข
 - **PyYAML**: อ่าน/เขียนไฟล์ YAML
 - **Shapely**: การคำนวณทางเรขาคณิต
-- **imgaug**: Data augmentation
+
+Data augmentation เขียนเองด้วย OpenCV + Pillow (`modules/augmentation.py`,
+`server/services/export_augment.py`) ไม่ได้ใช้ไลบรารีเสริม
 
 ---
 

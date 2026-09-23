@@ -16,7 +16,7 @@
 # ============================================================
 
 # ── 1. Builder ───────────────────────────────────────────────────────────────
-FROM python:3.10-slim AS builder
+FROM python:3.12-slim AS builder
 
 WORKDIR /install
 
@@ -33,13 +33,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy dependency files first (Docker layer cache)
 COPY requirements.txt .
 
-# Install CPU PaddlePaddle + remaining deps
-RUN pip install --no-cache-dir paddlepaddle==2.6.0 \
- && pip install --no-cache-dir -r requirements.txt
+# CPU PaddlePaddle 3.x comes from requirements.txt with everything else.
+RUN pip install --no-cache-dir -r requirements.txt
 
 
 # ── 2. runtime-cpu ───────────────────────────────────────────────────────────
-FROM python:3.10-slim AS runtime-cpu
+FROM python:3.12-slim AS runtime-cpu
 
 LABEL maintainer="Ajan OCR" \
       description="Ajan OCR Annotation Tool — CPU edition with noVNC browser GUI"
@@ -73,8 +72,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed Python packages from builder
-COPY --from=builder /usr/local/lib/python3.10/site-packages \
-                    /usr/local/lib/python3.10/site-packages
+COPY --from=builder /usr/local/lib/python3.12/site-packages \
+                    /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application source
@@ -134,11 +133,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ln -sf /usr/bin/python3.10 /usr/local/bin/python \
     && ln -sf /usr/bin/pip3 /usr/local/bin/pip
 
-# Install GPU-enabled PaddlePaddle then remaining deps
+# GPU PaddlePaddle 3.x (CUDA 11.8, same build as Dockerfile.web), then the rest
+# of requirements.txt minus its CPU `paddlepaddle` line: both wheels install
+# the same `paddle` package, and the second would overwrite the GPU build.
+# Python stays on Ubuntu 22.04's 3.10; see the note in Dockerfile.web.
 COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir paddlepaddle-gpu==2.6.0.post118 \
-        -f https://www.paddlepaddle.org.cn/whl/linux/mkl/avx/stable.html \
- && pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir paddlepaddle-gpu==3.1.1 \
+        -i https://www.paddlepaddle.org.cn/packages/stable/cu118/ \
+ && grep -iv '^paddlepaddle' /tmp/requirements.txt > /tmp/requirements-gpu.txt \
+ && pip install --no-cache-dir -r /tmp/requirements-gpu.txt
 
 COPY . /app
 

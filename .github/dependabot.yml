@@ -1,0 +1,56 @@
+# Dependabot opens update PRs between maintenance visits; CI, including the
+# Docker image builds, runs on each one.
+#
+# Docker base images are left out on purpose, because every PR Dependabot could
+# open for them today would be red or untestable:
+#   - python: it would propose 3.14-slim, but paddlepaddle 3.3.1 ships no cp314
+#     wheels, and the desktop image's numpy<2 pin has none past cp312.
+#   - node: majors alternate between LTS and short-lived releases, so the LTS
+#     line is chosen by hand.
+#   - nvidia/cuda: moving to CUDA 12 needs a GPU host to test.
+# Revisit once paddlepaddle publishes cp314 wheels.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: monthly
+    # Skip releases younger than a week: hijacked npm releases have usually
+    # been caught and pulled by then.
+    cooldown:
+      default-days: 7
+    groups:
+      frontend-minor-patch:
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "build(frontend)"
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    # Change a requirement only when a new release falls outside its range
+    # (numpy 2 against <2, say). The default would raise every lower bound in
+    # all five requirements files each month.
+    versioning-strategy: increase-if-necessary
+    ignore:
+      # 2 -> 3 renamed the API detector.py uses, and compat.py reads a private
+      # 3.x resolver; a 4.x needs the same review, not a routine bump.
+      - dependency-name: paddlepaddle
+        update-types: ["version-update:semver-major"]
+      - dependency-name: paddleocr
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "build(deps)"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"

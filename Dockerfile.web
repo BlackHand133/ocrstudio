@@ -39,6 +39,11 @@ COPY modules/ ./modules/
 COPY server/ ./server/
 COPY config/ ./config/
 
+# compat.py reads which PP-OCR release has which language model from PaddleOCR's
+# private resolver. If a new paddleocr moves it, the app quietly falls back to a
+# table measured on 3.7.0; fail the build instead so the probe gets updated.
+RUN PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True python -c "from modules.core.ocr.compat import capability_source; s = capability_source(); print('PP-OCR capabilities:', s); assert s.startswith('paddleocr'), s"
+
 # Built SPA -> served by FastAPI (server/main.py mounts ./static when present).
 COPY --from=frontend /frontend/dist ./server/static
 
@@ -87,6 +92,8 @@ RUN pip install --no-cache-dir paddlepaddle-gpu==3.1.1 \
 COPY modules/ ./modules/
 COPY server/ ./server/
 COPY config/ ./config/
+# Same capability-probe check as the CPU stage.
+RUN PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True python -c "from modules.core.ocr.compat import capability_source; s = capability_source(); print('PP-OCR capabilities:', s); assert s.startswith('paddleocr'), s"
 COPY --from=frontend /frontend/dist ./server/static
 
 RUN mkdir -p /app/workspaces /app/models /app/data /app/output_det /app/output_rec

@@ -18,20 +18,24 @@ export default defineConfig(({ mode }) => {
   },
   build: {
     outDir: 'dist',
-    rollupOptions: {
+    rolldownOptions: {
       output: {
         // Split heavy vendors into their own chunks for faster first load +
         // better browser caching (the app code changes far more often).
-        manualChunks: {
-          react: ['react', 'react-dom'],
-          mantine: [
-            '@mantine/core',
-            '@mantine/hooks',
-            '@mantine/notifications',
-            '@mantine/dropzone',
+        // A module matching several groups goes to the highest priority, so
+        // React stays in its own chunk instead of inside whichever library
+        // pulled it in first (under Rollup's manualChunks it ended up empty).
+        codeSplitting: {
+          groups: [
+            { name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/, priority: 40 },
+            { name: 'mantine', test: /node_modules[\\/]@mantine[\\/]/, priority: 30 },
+            {
+              name: 'konva',
+              test: /node_modules[\\/](konva|react-konva|react-reconciler|its-fine|use-image)[\\/]/,
+              priority: 30,
+            },
+            { name: 'query', test: /node_modules[\\/]@tanstack[\\/]/, priority: 30 },
           ],
-          konva: ['konva', 'react-konva', 'use-image'],
-          query: ['@tanstack/react-query', '@tanstack/react-virtual'],
         },
       },
     },

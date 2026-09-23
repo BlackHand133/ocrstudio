@@ -11,10 +11,12 @@ deployment). Run with::
 from __future__ import annotations
 
 import base64
+from contextlib import asynccontextmanager
 import logging
 import os
 from pathlib import Path
 import secrets
+import threading
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response as StarletteResponse
 
+from modules.core.ocr.compat import capability_source
 from server.routers import (
     annotations,
     config,
@@ -36,7 +39,18 @@ from server.routers import (
 
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="OCR Studio", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # GET /api/config reports which PP-OCR release supports which language, and
+    # the answer comes from importing paddleocr: about 5 s warm, far longer on a
+    # cold container. Pay that off the request path so the first page load does
+    # not wait; the first detection needs the same import anyway.
+    threading.Thread(target=capability_source, name="ocr-capabilities", daemon=True).start()
+    yield
+
+
+app = FastAPI(title="OCR Studio", version="1.0.0", lifespan=lifespan)
 
 # Dev convenience: the Vite dev server (5173) talks to this API directly.
 app.add_middleware(

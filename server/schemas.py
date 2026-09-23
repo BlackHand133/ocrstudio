@@ -112,12 +112,12 @@ class ConfigResponse(BaseModel):
     profiles: List[str]
     current_profile: str
     languages: List[str]
-    # PP-OCR releases, newest first.
+    # PP-OCR releases the installed engine accepts, newest first.
     ocr_versions: List[str] = []
-    # version -> languages it can recognize. A version missing from this map has
-    # no documented restriction, so the UI should allow every language for it.
-    # Lets the settings UI grey out combinations that cannot work (notably
-    # PP-OCRv6, which has no Thai model) instead of failing at detect time.
+    # Every release in ocr_versions -> the offered languages it can recognize,
+    # as answered by the installed PaddleOCR. Lets the settings UI grey out
+    # pairs that cannot load (Thai exists only in PP-OCRv5) instead of failing
+    # at detect time.
     version_languages: Dict[str, List[str]] = {}
 
 

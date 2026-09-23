@@ -47,9 +47,9 @@ export interface ConfigResponse {
   /** PP-OCR releases, newest first. */
   ocr_versions: string[];
   /**
-   * Languages each release can recognize. A version **absent** from this map has
-   * no documented restriction and allows every language — do not treat a missing
-   * key as an empty list.
+   * Languages each release in `ocr_versions` can recognize, from the installed
+   * PaddleOCR. Every offered release has a key; see `lib/ocrVersions.ts` for how
+   * a missing one is handled.
    */
   version_languages: Record<string, string[]>;
 }

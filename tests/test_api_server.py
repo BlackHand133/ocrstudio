@@ -5,9 +5,24 @@ app uses (workspace.json + v1.json), so existing workspaces stay compatible.
 """
 
 import json
+import sys
 
 import pytest
 from fastapi.testclient import TestClient
+
+
+@pytest.fixture()
+def static_capabilities(monkeypatch):
+    """Answer version/language questions from compat's measured table, even
+    where paddleocr is installed, so the assertions do not depend on which
+    release the machine happens to have."""
+    from modules.core.ocr import compat
+
+    for name in ("paddleocr", "paddleocr._pipelines", "paddleocr._pipelines.ocr"):
+        monkeypatch.setitem(sys.modules, name, None)
+    compat._capabilities.cache_clear()
+    yield
+    compat._capabilities.cache_clear()
 
 
 @pytest.fixture()
@@ -116,36 +131,52 @@ def test_settings_profile_params(client, tmp_path, monkeypatch):
     assert client.get("/api/config/profiles/nope").status_code == 404
 
 
+@pytest.mark.usefixtures("static_capabilities")
 def test_settings_rejects_version_without_language_model(client, tmp_path, monkeypatch):
-    """PP-OCRv6 has no Thai model; saving that pair must fail loudly here rather
+    """A profile PaddleOCR would refuse to build must fail loudly here rather
     than as an opaque PaddleOCR error on the first detect."""
     from modules.config import ConfigManager
 
     cfg = ConfigManager(str(tmp_path / "cfgver"))
     monkeypatch.setattr("server.routers.config.get_config", lambda: cfg)
 
-    r = client.put(
-        "/api/config/profiles/cpu", json={"lang": "th", "ocr_version": "PP-OCRv6"}
-    )
+    def put(body):
+        return client.put("/api/config/profiles/cpu", json=body)
+
+    r = put({"lang": "th", "ocr_version": "PP-OCRv6"})
     assert r.status_code == 400
     assert "PP-OCRv5" in r.json()["detail"]  # points at the version that works
 
-    # The supported pairing goes through.
-    r = client.put(
-        "/api/config/profiles/cpu", json={"lang": "th", "ocr_version": "PP-OCRv5"}
-    )
+    # PP-OCRv4 has no Thai model either; the earlier table let this through.
+    assert put({"lang": "th", "ocr_version": "PP-OCRv4"}).status_code == 400
+
+    # A retired 2.x code fails with no release pinned, and says why.
+    r = put({"lang": "latin"})
+    assert r.status_code == 400
+    assert "2.x" in r.json()["detail"]
+
+    assert put({"lang": "th", "ocr_version": "PP-OCRv5"}).status_code == 200
+
+    # With a custom recognizer PaddleOCR ignores lang/ocr_version, so v4 is fine...
+    r = put({"ocr_version": "PP-OCRv4", "text_recognition_model_dir": "models/rec/my"})
     assert r.status_code == 200, r.text
+    # ...until the custom model is cleared and th + v4 would have to resolve.
+    assert put({"text_recognition_model_dir": None}).status_code == 400
 
 
+@pytest.mark.usefixtures("static_capabilities")
 def test_config_exposes_version_capability_matrix(client):
     r = client.get("/api/config")
     assert r.status_code == 200
     body = r.json()
-    assert "PP-OCRv6" in body["ocr_versions"]
-    # v6 is language-restricted and must advertise that Thai is not included.
-    assert "th" not in body["version_languages"]["PP-OCRv6"]
-    # v5 has no documented restriction, so it is absent from the map entirely.
-    assert "PP-OCRv5" not in body["version_languages"]
+    matrix = body["version_languages"]
+    # Every release is listed, so the client never has to guess what a missing key means.
+    assert set(matrix) == set(body["ocr_versions"])
+    assert "th" in matrix["PP-OCRv5"]
+    assert "th" not in matrix["PP-OCRv6"]
+    assert "th" not in matrix["PP-OCRv4"]
+    # PaddleOCR 2.x script-group codes resolve under no 3.x release.
+    assert not {"latin", "arabic", "cyrillic", "devanagari"} & set(body["languages"])
 
 
 def test_engine_status_without_loaded_detector(client):

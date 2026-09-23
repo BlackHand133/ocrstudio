@@ -1,18 +1,19 @@
 /**
- * PP-OCR release / language compatibility, mirrored from the backend.
+ * PP-OCR release / language compatibility, as reported by the backend.
  *
- * Not every PP-OCR release ships a model for every language — PP-OCRv6 in
- * particular covers Chinese, English, Japanese and Latin-script languages only,
- * so pairing it with Thai produces an engine that cannot load. The backend
- * rejects those pairs; this module lets the UI grey them out first.
+ * Not every PP-OCR release ships a model for every language. Thai, for one,
+ * exists only in PP-OCRv5, so pairing it with v6, v4 or v3 produces an engine
+ * that cannot load. The backend asks the installed PaddleOCR which pairs work
+ * and rejects the rest on save; this module lets the UI grey them out first.
  */
 
 /**
  * `version_languages` from `GET /api/config`.
  *
- * A version **absent** from the map has no documented restriction and supports
- * every language. Treating a missing key as an empty list would wrongly
- * disable every option.
+ * The backend lists every release it offers, with the languages each one can
+ * recognize. A release **absent** from the map (an older backend) is treated as
+ * unrestricted rather than as supporting nothing: the backend still validates
+ * on save, whereas an empty list would disable every option.
  */
 export type VersionLanguages = Record<string, string[]>;
 

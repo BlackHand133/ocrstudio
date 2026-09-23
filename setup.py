@@ -42,7 +42,7 @@ setup(
             "mypy>=0.950",
         ],
         "gpu": [
-            "paddlepaddle-gpu>=2.4.0",
+            "paddlepaddle-gpu>=3.0.0,<4",
         ],
     },
     entry_points={
@@ -50,7 +50,7 @@ setup(
             "ajan-ocr=main:main",
         ],
     },
-    python_requires=">=3.8",
+    python_requires=">=3.10",
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
@@ -58,10 +58,9 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
         "Topic :: Scientific/Engineering :: Image Recognition",
     ],

@@ -27,7 +27,7 @@ Thank you for your interest in contributing to Ajan OCR Annotation Tool! This do
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.10 or higher (CI tests 3.10 and 3.12)
 - Git
 - Basic understanding of PyQt5 and OpenCV
 - Familiarity with OCR concepts

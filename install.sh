@@ -41,12 +41,14 @@ print_error() {
 # Check Python version
 print_info "Checking Python version..."
 if ! command -v python3 &> /dev/null; then
-    print_error "Python 3 is not installed. Please install Python 3.8 or higher."
+    print_error "Python 3 is not installed. Please install Python 3.10 or higher."
     exit 1
 fi
 
 PYTHON_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
-REQUIRED_VERSION="3.8"
+# 3.8 and 3.9 are past end of life, and PaddlePaddle stopped shipping 3.8
+# wheels at 3.1.
+REQUIRED_VERSION="3.10"
 
 if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$PYTHON_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
     print_error "Python $PYTHON_VERSION is installed, but Python $REQUIRED_VERSION or higher is required."

@@ -16,7 +16,7 @@ echo [INFO] Checking Python installation...
 python --version >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Python is not installed or not in PATH.
-    echo [ERROR] Please install Python 3.8 or higher from https://www.python.org/
+    echo [ERROR] Please install Python 3.10 or higher from https://www.python.org/
     pause
     exit /b 1
 )

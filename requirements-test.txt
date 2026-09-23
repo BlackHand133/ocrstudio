@@ -18,7 +18,8 @@ starlette>=1.2
 
 # Core libraries used by the headless import chain
 # (image_service thumbnails, export crop/mask utils, validation, augmentation).
-opencv-python-headless>=4.8.0
-Pillow>=10.0.0
+# Upper bounds: see requirements.txt.
+opencv-python-headless>=4.8.0,<6
+Pillow>=10.0.0,<13
 numpy>=1.24.0,<3.0.0
-PyYAML>=6.0.0
+PyYAML>=6.0.0,<7

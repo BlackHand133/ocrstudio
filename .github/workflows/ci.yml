@@ -16,12 +16,12 @@ jobs:
     name: Lint (web backend)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v5
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
         with:
-          python-version: "3.10"
+          python-version: "3.12"
           cache: pip
 
       - name: Install lint dependencies
@@ -43,18 +43,20 @@ jobs:
 
   # ─────────────────────────────────────────────
   # Job 2: Core unit tests (no Qt, no PaddleOCR)
+  # 3.10 is what the GPU images run (Ubuntu 22.04) and the supported floor;
+  # 3.12 is what the CPU images run.
   # ─────────────────────────────────────────────
   test:
     name: Unit tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11"]
+        python-version: ["3.10", "3.12"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -85,12 +87,12 @@ jobs:
     name: Backend API tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v5
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
         with:
-          python-version: "3.10"
+          python-version: "3.12"
           cache: pip
 
       - name: Install lightweight web test dependencies
@@ -114,12 +116,12 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Set up Node 20
-        uses: actions/setup-node@v4
+      - name: Set up Node 24
+        uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -133,26 +135,41 @@ jobs:
         run: npm run test
 
   # ─────────────────────────────────────────────
-  # Job 5: Docker build (CPU web image)
+  # Job 5: Docker builds (CPU images)
+  # Runs on pull requests too: with the layer cache, a change that leaves the
+  # dependency layers alone builds in under a minute, and a Dockerfile change
+  # is then tested before it merges instead of after. Pull requests read the
+  # cache but never write it, so they cannot evict main's layers.
+  # The desktop image is built so it cannot drift again unnoticed (it was
+  # still installing PaddlePaddle 2.6 next to a 3.x requirement).
   # ─────────────────────────────────────────────
   docker-build:
-    name: Docker build (web, CPU)
+    name: Docker build (${{ matrix.name }})
     runs-on: ubuntu-latest
-    # Only run on push (not every PR) — the paddle wheels make this a heavy build.
-    if: github.event_name == 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: web, CPU
+            file: Dockerfile.web
+            target: runtime-web
+            scope: web-cpu
+          - name: desktop, CPU
+            file: Dockerfile
+            target: runtime-cpu
+            scope: desktop-cpu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
-      - name: Build CPU web image
-        uses: docker/build-push-action@v5
+      - name: Build ${{ matrix.name }} image
+        uses: docker/build-push-action@v7
         with:
           context: .
-          file: Dockerfile.web
-          target: runtime-web
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
           push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          tags: ocrstudio-web:cpu-ci
+          cache-from: type=gha,scope=${{ matrix.scope }}
+          cache-to: ${{ github.event_name == 'push' && format('type=gha,mode=max,scope={0}', matrix.scope) || '' }}

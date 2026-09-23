@@ -1,8 +1,10 @@
 PyQt5>=5.15.0,<6.0.0
 # 3.x required: detector.py uses the PaddleOCR 3.x API (predict / rec_polys) and
 # the 3.x parameter names. Installing 2.x here builds an app that cannot detect.
-paddlepaddle>=3.0.0
-paddleocr>=3.0.0
+# Capped below 4 for the same reason in the other direction: 2 -> 3 renamed the
+# API, and compat.py reads a private 3.x resolver.
+paddlepaddle>=3.0.0,<4
+paddleocr>=3.0.0,<4
 opencv-python>=4.8.0
 Pillow>=10.0.0
 numpy>=1.24.0,<2.0.0

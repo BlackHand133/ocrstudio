@@ -10,7 +10,7 @@
 # ============================================================
 
 # ── 1. Frontend build ───────────────────────────────────────────────────────
-FROM node:20-slim AS frontend
+FROM node:24-slim AS frontend
 WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci
@@ -19,7 +19,7 @@ RUN npm run build
 
 
 # ── 2. Python web runtime (CPU) ──────────────────────────────────────────────
-FROM python:3.10-slim AS runtime-web
+FROM python:3.12-slim AS runtime-web
 WORKDIR /app
 
 # Runtime libs: OpenCV needs libgl/glib; PaddlePaddle needs libgomp (OpenMP).
@@ -64,6 +64,11 @@ CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # ── 3. Python web runtime (GPU / CUDA 11.8) ──────────────────────────────────
 # Build with: docker compose -f docker-compose.web.yml -f docker-compose.web.gpu.yml up --build
+#
+# Stays on Ubuntu 22.04's Python 3.10 (patched by Ubuntu until 2027-04) while
+# the CPU image uses 3.12: there is no CUDA 11.8 image for Ubuntu 24.04, and
+# moving to CUDA 12 changes the base image, the paddle wheel index and the host
+# driver floor together, which needs a GPU host to test.
 FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04 AS runtime-web-gpu
 WORKDIR /app
 
@@ -83,7 +88,7 @@ COPY requirements-server.txt ./
 RUN pip install --no-cache-dir paddlepaddle-gpu==3.1.1 \
         -i https://www.paddlepaddle.org.cn/packages/stable/cu118/ \
  && pip install --no-cache-dir \
-        "paddleocr>=3.0.0" \
+        "paddleocr>=3.0.0,<4" \
         "opencv-python-headless>=4.8.0" \
         "Pillow>=10.0.0" \
         "PyYAML>=6.0.0" \

@@ -215,8 +215,12 @@ pytest tests/test_api_server.py -q
 cd frontend && npm run test
 ```
 
-CI (`.github/workflows/ci.yml`) runs on every push/PR: backend lint + core unit tests + web API
-tests, frontend build + Vitest, and a CPU Docker build on push.
+CI (`.github/workflows/ci.yml`) runs on every push/PR: backend lint, core unit tests on Python
+3.10 and 3.12, web API tests, frontend build + Vitest, and Docker builds of the web and desktop
+CPU images. Dependabot (`.github/dependabot.yml`) opens monthly update PRs.
+
+Maintenance status, the versions in use, open follow-ups and the checklist for the next update
+round: **[docs/MAINTENANCE.md](docs/MAINTENANCE.md)**.
 
 ### Optional: password-protect the server
 

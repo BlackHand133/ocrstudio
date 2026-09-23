@@ -662,7 +662,7 @@ class ConfigManager:
         Returns:
             List of warning message strings.  Empty list means clean config.
         """
-        from modules.core.ocr.compat import explain_unsupported, version_supports_lang
+        from modules.core.ocr.compat import engine_param_error
 
         warnings: List[str] = []
 
@@ -719,11 +719,12 @@ class ConfigManager:
                         logger.warning("Config validation: %s", msg)
                         warnings.append(msg)
 
-            # PP-OCR release vs language
-            version = ocr.get("ocr_version")
-            lang = ocr.get("lang")
-            if version and lang and not version_supports_lang(version, lang):
-                msg = f"Profile '{profile_name}': {explain_unsupported(version, lang)}"
+            # PP-OCR release vs language, checked the way PaddleOCR.__init__
+            # will check it — including with no release pinned, since the
+            # retired 2.x script-group codes ('latin', ...) resolve under none.
+            problem = engine_param_error(ocr)
+            if problem:
+                msg = f"Profile '{profile_name}': {problem}"
                 logger.warning("Config validation: %s", msg)
                 warnings.append(msg)
 

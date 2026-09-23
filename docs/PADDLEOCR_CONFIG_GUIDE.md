@@ -56,18 +56,40 @@ the new ones.
 
 ## PP-OCR version × language
 
-`ocr_version` accepts `PP-OCRv6`, `PP-OCRv5`, `PP-OCRv4`, `PP-OCRv3`. Leave it
-unset to let PaddleOCR pick its own default.
+`ocr_version` accepts the releases the installed PaddleOCR knows: `PP-OCRv6`
+through `PP-OCRv3` on 3.7, `PP-OCRv5` through `PP-OCRv3` on 3.6. Leave it unset
+to let PaddleOCR pick per language; for Thai that pick is `PP-OCRv5`.
 
-> **PP-OCRv6 has no Thai model.** Its unified model covers Chinese, English,
-> Japanese and Latin-script languages only. Pairing it with `lang: "th"` produces
-> an engine that cannot read the text.
+Not every release has a recognizer for every language. For the languages the
+settings UI offers, PaddleOCR 3.7.0 resolves:
 
-The settings UI greys out impossible combinations, and the API rejects them with
-HTTP 400 rather than letting detection fail later with an opaque error.
+| `lang` | unset | v6 | v5 | v4 | v3 |
+|---|---|---|---|---|---|
+| `th` | ✓ | – | ✓ | – | – |
+| `en`, `ch` | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `chinese_cht`, `japan` | ✓ | ✓ | ✓ | – | ✓ |
+| `korean` | ✓ | – | ✓ | – | ✓ |
 
-**For Thai, use `PP-OCRv5`** — it is the release that ships a Thai recognition
-model.
+**For Thai, use `PP-OCRv5` or leave the release unset.** It is the only release
+with a Thai recognition model.
+
+The table came from running PaddleOCR's own model resolver, not from its
+documentation. At runtime OCR Studio asks the installed engine the same question,
+so a newer PaddleOCR that adds a model is picked up without a code change; the
+table above is only the fallback used when PaddleOCR is not installed.
+`GET /api/config/engine` reports which of the two answered (`capability_source`).
+
+The settings UI greys out the combinations that cannot load, and the API rejects
+them with HTTP 400 naming a release that works. Pairs PaddleOCR would reject are
+refused even with the release unset. If a custom detection or recognition model
+is set, PaddleOCR ignores `lang` and `ocr_version`, so neither is checked.
+
+> **`latin`, `arabic`, `cyrillic` and `devanagari` are gone.** They were
+> PaddleOCR 2.x script-group codes, and no 3.x release resolves them. Use a
+> specific language instead: `fr`, `de`, `es` or `pt` for Latin script; `ar`,
+> `fa` or `ur` for Arabic script; `ru`, `bg` or `kk` for Cyrillic; `hi`, `mr` or
+> `ne` for Devanagari. These can be set in the profile YAML; the settings UI
+> offers only the six codes above.
 
 ---
 
@@ -186,7 +208,7 @@ paths that do not exist.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `lang` | str | `"th"` | Recognition language |
-| `ocr_version` | str | unset | `PP-OCRv6` / `v5` / `v4` / `v3` |
+| `ocr_version` | str | unset | `PP-OCRv6` (PaddleOCR 3.7+) / `v5` / `v4` / `v3`; see the version × language table |
 | `device` | str | `"cpu"` | `"cpu"` or `"gpu"` |
 | `text_detection_model_name` | str | unset | Official model name |
 | `text_detection_model_dir` | str | unset | Custom detection model path |

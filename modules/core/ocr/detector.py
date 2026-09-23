@@ -25,10 +25,9 @@ from PIL import Image
 
 from modules.constants import DEFAULT_MAX_IMAGE_SIZE, DEFAULT_OCR_LANG
 from modules.core.ocr.compat import (
+    engine_param_error,
     engine_version,
-    explain_unsupported,
     normalize_params,
-    version_supports_lang,
 )
 
 logger = logging.getLogger("TextDetGUI")
@@ -90,9 +89,8 @@ class TextDetector:
         # ===== 3. Setup Environment =====
         self._setup_environment()
 
-        # ===== 4. Check version/language compatibility =====
+        # Notes about rewritten 2.x params, filled in by _init_paddleocr().
         self.compat_warnings: List[str] = []
-        self._check_version_lang()
 
         # Largest side an image is downscaled to before OCR. Read before the
         # engine is built because it is ours, not a PaddleOCR keyword.
@@ -100,7 +98,7 @@ class TextDetector:
             self.config.get('max_image_size', DEFAULT_MAX_IMAGE_SIZE) or 0
         )
 
-        # ===== 5. Initialize PaddleOCR =====
+        # ===== 4. Initialize PaddleOCR =====
         self._init_paddleocr()
 
         # Log summary
@@ -108,21 +106,6 @@ class TextDetector:
             f"TextDetector initialized: profile={self.profile_name}, "
             f"device={self.config.get('device', 'cpu').upper()}"
         )
-
-    def _check_version_lang(self):
-        """Warn when the configured PP-OCR version has no model for the language.
-
-        We only warn — PaddleOCR may still fall back to something usable, and
-        blocking here would strand a user whose config predates this check. The
-        UI surfaces the same information up front so it rarely gets this far.
-        """
-        version = self.config.get('ocr_version')
-        lang = self.config.get('lang', DEFAULT_OCR_LANG)
-
-        if version and not version_supports_lang(version, lang):
-            msg = explain_unsupported(version, lang)
-            self.logger.warning("OCR config: %s", msg)
-            self.compat_warnings.append(msg)
 
     def _load_config(
         self,
@@ -230,12 +213,22 @@ class TextDetector:
         Profile params are normalized to PaddleOCR 3.x spelling first: configs
         written for 2.x still use ``det_db_box_thresh`` and friends, which 3.x
         rejects. See :mod:`modules.core.ocr.compat`.
-        """
-        from paddleocr import PaddleOCR
 
+        The normalized params are then checked for a release/language pair with
+        no model behind it. PaddleOCR raises for those anyway ("No models are
+        available for lang=..."), so this adds no new failure; it swaps that
+        message for one that names a working choice, before paddle is imported.
+        """
         params, notes = normalize_params(self.config)
         self.compat_warnings.extend(notes)
         self.engine_params = params
+
+        problem = engine_param_error(params)
+        if problem:
+            self.logger.error("OCR config: %s", problem)
+            raise ValueError(problem)
+
+        from paddleocr import PaddleOCR
 
         try:
             self.logger.debug(f"Initializing PaddleOCR with params: {params}")

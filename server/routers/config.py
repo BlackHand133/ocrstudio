@@ -8,19 +8,23 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from modules.core.ocr.compat import (
-    OCR_VERSIONS,
     PARAM_ALIASES,
+    available_versions,
+    capability_source,
+    engine_param_error,
     engine_version,
-    explain_unsupported,
+    lang_supported,
     supported_langs,
-    version_supports_lang,
 )
 from server import schemas
 from server.deps import get_config, peek_detector, reset_detector
 
 router = APIRouter(prefix="/api/config", tags=["config"])
 
-# Common PaddleOCR language codes (not exhaustive — UI lets you pick).
+# Language codes offered in the settings UI. 'latin', 'arabic', 'cyrillic' and
+# 'devanagari' used to be listed too: they are PaddleOCR 2.x script-group codes
+# that no 3.x release resolves, so choosing one built an engine that could not
+# start. _offered_languages() also filters against the installed engine.
 LANGUAGES = [
     "th",
     "en",
@@ -28,26 +32,21 @@ LANGUAGES = [
     "chinese_cht",
     "japan",
     "korean",
-    "latin",
-    "arabic",
-    "cyrillic",
-    "devanagari",
 ]
+
+
+def _offered_languages() -> list:
+    return [lang for lang in LANGUAGES if lang_supported(lang)]
 
 
 def _version_languages() -> dict:
     """Languages per PP-OCR release, restricted to the codes the UI offers.
 
-    Versions with no documented restriction are omitted entirely — the client
-    treats a missing key as "all languages allowed" rather than as an empty set.
+    Every release the installed engine accepts is listed, even when the list is
+    empty, so the client never has to guess what an absent key means.
     """
-    out = {}
-    for version in OCR_VERSIONS:
-        allowed = supported_langs(version)
-        if allowed is None:
-            continue
-        out[version] = [lang for lang in LANGUAGES if lang in allowed]
-    return out
+    offered = _offered_languages()
+    return {version: supported_langs(version, offered) for version in available_versions()}
 
 
 def _info() -> schemas.ConfigResponse:
@@ -55,8 +54,8 @@ def _info() -> schemas.ConfigResponse:
     return schemas.ConfigResponse(
         profiles=cfg.list_profiles(),
         current_profile=cfg.get_current_profile(),
-        languages=LANGUAGES,
-        ocr_versions=list(OCR_VERSIONS),
+        languages=_offered_languages(),
+        ocr_versions=list(available_versions()),
         version_languages=_version_languages(),
     )
 
@@ -81,6 +80,9 @@ def get_engine_status() -> dict:
         "engine": "PaddleOCR",
         "engine_version": engine_version(),
         "loaded": detector is not None,
+        # Which answer the version/language checks are giving: the installed
+        # engine's own resolver, or the static fallback when it is not importable.
+        "capability_source": capability_source(),
     }
 
     if detector is not None:
@@ -156,6 +158,11 @@ _EDITABLE = (
 )
 
 
+def _blank(val) -> bool:
+    """None or a blank string: "use the official default" for that key."""
+    return val is None or (isinstance(val, str) and not val.strip())
+
+
 def _profile_view(cfg, name: str) -> dict:
     params = cfg.get_paddleocr_params(name)
     return {"name": name, "params": {k: params.get(k) for k in _EDITABLE}}
@@ -187,12 +194,13 @@ def update_profile_params(name: str, body: ProfileParams) -> dict:
         if val is not None and data.get(new_key) is None:
             data[new_key] = val
 
-    # Reject combinations that have no model behind them, rather than letting
-    # detection fail later with an opaque PaddleOCR error.
-    version = data.get("ocr_version", paddle.get("ocr_version"))
-    lang = data.get("lang", paddle.get("lang"))
-    if version and lang and not version_supports_lang(version, lang):
-        raise HTTPException(400, explain_unsupported(version, lang))
+    # Reject a profile PaddleOCR would refuse to build, checked against what the
+    # profile will hold after this save, rather than letting detection fail
+    # later with an opaque error.
+    after = {k: v for k, v in {**paddle, **data}.items() if not _blank(v)}
+    problem = engine_param_error(after)
+    if problem:
+        raise HTTPException(400, problem)
 
     for key in _EDITABLE:
         if key not in data:
@@ -200,7 +208,7 @@ def update_profile_params(name: str, body: ProfileParams) -> dict:
         val = data[key]
         # None / blank string => use official default: drop the custom key so
         # PaddleOCR never receives a stale path/name (clean official<->custom switch).
-        if val is None or (isinstance(val, str) and not val.strip()):
+        if _blank(val):
             paddle.pop(key, None)
         else:
             cfg.update_profile_setting(name, f"paddleocr.{key}", val)

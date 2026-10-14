@@ -56,9 +56,9 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 | PR | สิ่งที่ทำ |
 |---|---|
 | [#15](https://github.com/BlackHand133/ocrstudio/pull/15) | konva 10.7.0, vite 8.3.1 (Dependabot) |
+| [#17](https://github.com/BlackHand133/ocrstudio/pull/17) | source-map-js 1.2.2 แก้ Dependabot alert #1 (high, GHSA-68fv-2mgg-jv7q) มาจาก `postcss` ใช้ตอน build เท่านั้น |
 
-ตรวจแล้วไม่ต้องแก้: PaddlePaddle / PaddleOCR ไม่มีรุ่นใหม่ (3.3.1 / 3.7.0), Dependabot alerts
-0, runner `ubuntu-latest` ที่จะย้ายไป Ubuntu 26 ตั้งแต่ 2026-10-19 มี Python 3.10 และ 3.12
+ตรวจแล้วไม่ต้องแก้: PaddlePaddle / PaddleOCR ไม่มีรุ่นใหม่ (3.3.1 / 3.7.0), runner `ubuntu-latest` ที่จะย้ายไป Ubuntu 26 ตั้งแต่ 2026-10-19 มี Python 3.10 และ 3.12
 ให้ `setup-python` ครบ และ CI ไม่มีขั้นตอนที่ใช้ `apt` บน runner build image web บนเครื่อง
 แล้ว OCR ทำงานบน Python 3.12
 

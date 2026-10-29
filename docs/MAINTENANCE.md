@@ -66,7 +66,9 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 ปิด [#18](https://github.com/BlackHand133/ocrstudio/pull/18) เพราะซ้ำกับ #17 ที่ merge ไปแล้ว
 
 เพิ่ม `gpu-images.yml` ให้ build image GPU ทั้งสองตัว (ก่อนหน้านี้ไม่มีอะไร build เลย) และขยับ
-`paddlepaddle-gpu` จาก 3.1.1 เป็น 3.3.1 ให้ตรงกับ image CPU
+`paddlepaddle-gpu` จาก 3.1.1 เป็น 3.3.1 ให้ตรงกับ image CPU การ build ครั้งแรกเจอว่า image GPU
+ของ desktop ไม่เคย build ได้แบบไม่มีคนเฝ้า: `tzdata` ถามเขตเวลาแล้วรอคำตอบไม่จบ แก้ด้วย
+`ARG DEBIAN_FRONTEND=noninteractive`
 
 ### 2026-10-15
 

@@ -108,6 +108,9 @@ LABEL maintainer="Ajan OCR" \
 
 WORKDIR /app
 
+# xvfb / novnc pull in tzdata, whose postinst asks for a time zone and waits
+# for an answer forever without this. ARG, not ENV: build time only.
+ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3.10 \
         python3-pip \

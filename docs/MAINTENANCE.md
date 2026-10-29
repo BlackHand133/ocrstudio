@@ -64,7 +64,7 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 | [#19](https://github.com/BlackHand133/ocrstudio/pull/19) | vite 8.3.4 แก้ช่องโหว่ของ vite และ `launch-editor` (high) ที่ `npm audit` เจอ ใช้ตอน dev/build เท่านั้น |
 | [#20](https://github.com/BlackHand133/ocrstudio/pull/20) | vitest / `@vitest/mocker` 5.0.5 แก้ GHSA-qxg6-89mg-rqv8 และ GHSA-xp26-3454-mjgp (moderate) ใช้ตอน test เท่านั้น |
 | [#21](https://github.com/BlackHand133/ocrstudio/pull/21) | `gpu-images.yml` build image GPU ทั้งสองตัว (ก่อนหน้านี้ไม่มีอะไร build เลย), `paddlepaddle-gpu` 3.1.1 → 3.3.1 ให้ตรงกับ CPU และแก้ image GPU ของ desktop ที่ไม่เคย build ได้แบบไม่มีคนเฝ้า (`tzdata` ถามเขตเวลาแล้วรอไม่จบ แก้ด้วย `ARG DEBIAN_FRONTEND=noninteractive`) |
-| (PR นี้) | OpenCV เหลือ `opencv-contrib-python` ตัวเดียว: ทุก image ลง `opencv-python` 5.0 (หรือ `-headless`) คู่กับ `opencv-contrib-python` 4.10 ที่ paddlex ล็อกไว้ ทั้งสองลงที่ `cv2/` เดียวกัน `cv2` ที่ใช้จริงจึงเป็น 4.10 มาตลอด ส่วน 5.0 เป็นของเปล่า และถ้าถอนตัวใดตัวหนึ่ง `cv2` จะพัง test ล็อก headless `<5` ให้ตรงกับที่ใช้จริง |
+| [#22](https://github.com/BlackHand133/ocrstudio/pull/22) | OpenCV เหลือ `opencv-contrib-python` ตัวเดียว: ทุก image ลง `opencv-python` 5.0 (หรือ `-headless`) คู่กับ `opencv-contrib-python` 4.10 ที่ paddlex ล็อกไว้ ทั้งสองลงที่ `cv2/` เดียวกัน `cv2` ที่ใช้จริงจึงเป็น 4.10 มาตลอด ส่วน 5.0 เป็นของเปล่า และถ้าถอนตัวใดตัวหนึ่ง `cv2` จะพัง test ล็อก headless `<5` ให้ตรงกับที่ใช้จริง |
 
 ปิด [#18](https://github.com/BlackHand133/ocrstudio/pull/18) เพราะซ้ำกับ #17 ที่ merge ไปแล้ว
 

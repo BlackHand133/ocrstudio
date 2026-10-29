@@ -1,0 +1,61 @@
+name: GPU images
+
+# Builds the CUDA images that ci.yml leaves out. Nothing publishes them and
+# CI has no GPU, so without this a broken GPU stage would only surface when a
+# user builds it. Building needs no GPU: the capability probe at the end of
+# each stage still imports paddle and paddleocr.
+#
+# Not on every pull request: the CUDA base plus the paddle GPU wheel is several
+# GB. It runs when a file that feeds these stages changes (on any branch, so a
+# PR branch is covered by its own push), weekly to catch upstream breakage, and
+# on demand. No gha layer cache: these layers would crowd ci.yml's CPU layers
+# out of the repository's cache quota.
+
+on:
+  push:
+    paths:
+      - Dockerfile
+      - Dockerfile.web
+      - requirements*.txt
+      - modules/core/ocr/**
+      - .github/workflows/gpu-images.yml
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  docker-build-gpu:
+    name: Docker build (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    # A clean build takes 7-15 minutes. Fail a stuck build (an interactive
+    # apt prompt, say) instead of holding a runner for the 6-hour default.
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: web, GPU
+            file: Dockerfile.web
+            target: runtime-web-gpu
+          - name: desktop, GPU
+            file: Dockerfile
+            target: runtime-gpu
+    steps:
+      - uses: actions/checkout@v7
+
+      # The runner image ships ~14 GB free; the CUDA layers need more headroom.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build ${{ matrix.name }} image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
+          push: false

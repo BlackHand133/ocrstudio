@@ -40,6 +40,12 @@ jobs:
           - name: desktop, GPU
             file: Dockerfile
             target: runtime-gpu
+          - name: web, GPU CUDA 12.6
+            file: Dockerfile.web
+            target: runtime-web-gpu-cu126
+          - name: desktop, GPU CUDA 12.6
+            file: Dockerfile
+            target: runtime-gpu-cu126
     steps:
       - uses: actions/checkout@v7
 

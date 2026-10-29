@@ -10,7 +10,7 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 | เรื่อง | สถานะ |
 |---|---|
 | CI บน `main` | ผ่าน 7/7: lint, unit test (Python 3.10 และ 3.12), API test, frontend, Docker image web + desktop |
-| image GPU (web + desktop) | build อย่างเดียว ไม่มี GPU ให้รัน (`.github/workflows/gpu-images.yml`) เมื่อไฟล์ที่ใช้ build เปลี่ยน, ทุกวันจันทร์ และกดรันเองได้ |
+| image GPU (web + desktop × CUDA 11.8 / 12.6) | build อย่างเดียว ไม่มี GPU ให้รัน (`.github/workflows/gpu-images.yml`) เมื่อไฟล์ที่ใช้ build เปลี่ยน, ทุกวันจันทร์ และกดรันเองได้ รันบน GPU จริงด้วย `scripts/gpu_smoke_check.py` |
 | ช่องโหว่ที่รู้ | 0 (`npm audit` และ Dependabot alerts) |
 | Dependabot | alerts, security updates และ version updates รายเดือน (`.github/dependabot.yml`) |
 
@@ -32,11 +32,21 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 
 1. **image GPU ยังเป็น Python 3.10 บน CUDA 11.8** (stage GPU ใน `Dockerfile` และ `Dockerfile.web`)
    ไม่มี image CUDA 11.8 สำหรับ Ubuntu 24.04 จึงต้องย้ายไป CUDA 12 พร้อม Python 3.12
-   และต้องทดสอบบนเครื่องที่มี GPU python.org เลิกดูแล 3.10 วันที่ 2026-10-31 แต่ image ใช้
-   `python3.10` จาก apt ซึ่ง Ubuntu 22.04 ยัง patch ให้ถึง 2027-04 **เส้นตายจริงคือ 2027-04**
-   แผน: base `nvidia/cuda:12.x-cudnn-runtime-ubuntu24.04` (Python 3.12) + index paddle `cu126`
-   และเก็บ stage cu118 ไว้อีกหนึ่งรอบสำหรับ host ที่ driver เก่า ตอนนี้ build ตรวจใน CI ได้แล้ว
-   (`gpu-images.yml`) เหลือรันบน GPU จริงหนึ่งครั้ง (2026-10-29: ยังไม่ได้ย้าย รอเครื่อง GPU)
+   python.org เลิกดูแล 3.10 วันที่ 2026-10-31 แต่ image ใช้ `python3.10` จาก apt ซึ่ง
+   Ubuntu 22.04 ยัง patch ให้ถึง 2027-04 **เส้นตายจริงคือ 2027-04**
+
+   เตรียมแล้ว (2026-10-29): stage `runtime-web-gpu-cu126` และ `runtime-gpu-cu126` บน
+   `nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04` (Python 3.12 ใน venv `/opt/venv`) กับ paddle
+   index `cu126` วางคู่กับ stage cu118 เดิม `gpu-images.yml` build ทั้ง 4 ตัว ผู้ใช้ยังได้ cu118
+   ตามเดิมจนกว่าจะสลับ เหลือขั้นที่ต้องใช้เครื่อง GPU:
+   1. บนเครื่อง GPU (driver รองรับ CUDA 12.6):
+      `GPU_TARGET=runtime-web-gpu-cu126 docker compose -f docker-compose.web.yml -f docker-compose.web.gpu.yml build`
+      แล้วรัน `scripts/gpu_smoke_check.py` ตามวิธีในหัวไฟล์ ต้องได้ `ALL CHECKS PASSED`
+      และเปิดเว็บกด Run OCR ดูว่าได้กล่องและข้อความ
+   2. ผ่านแล้ว: เปลี่ยนชื่อ stage cu126 เป็น `runtime-web-gpu` / `runtime-gpu` และเก็บ stage
+      cu118 ไว้อีกหนึ่งรอบในชื่อ `-cu118` สำหรับ host ที่ driver เก่า แล้วเอา Python 3.10 ออก
+      จาก matrix ของ `ci.yml`
+   3. รอบถัดไป: ลบ stage cu118
 2. **Dependabot ยังไม่ดูแล Docker base image** เพราะตอนนี้ PR ที่มันจะเปิด (`python:3.14-slim`)
    build ไม่ได้: paddlepaddle 3.3.1 ยังไม่มี wheel สำหรับ Python 3.14 เปิดเมื่อ paddlepaddle
    รองรับแล้ว (รายละเอียดอยู่ใน `.github/dependabot.yml`) ณ 2026-10-15 รุ่นล่าสุดบน PyPI

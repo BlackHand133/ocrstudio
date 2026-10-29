@@ -161,3 +161,71 @@ ENV MODE=gui \
     PYTHONDONTWRITEBYTECODE=1
 
 ENTRYPOINT ["/app/docker/entrypoint.sh"]
+
+
+# ── 4. runtime-gpu-cu126 — candidate replacement for 3. ──────────────────────
+# CUDA 12.6 on Ubuntu 24.04, whose Python 3.12 matches the CPU stage. Kept
+# beside runtime-gpu until the web GPU image (same base and paddle build, see
+# Dockerfile.web) has run OCR on a real GPU; then it takes over that name.
+FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 AS runtime-gpu-cu126
+
+LABEL maintainer="Ajan OCR" \
+      description="Ajan OCR Annotation Tool — GPU edition (CUDA 12.6)"
+
+WORKDIR /app
+
+# xvfb / novnc pull in tzdata, whose postinst asks for a time zone and waits
+# for an answer forever without this. ARG, not ENV: build time only.
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-venv \
+        libgl1 \
+        libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libxrender1 \
+        libxkbcommon-x11-0 \
+        libxcb-icccm4 \
+        libxcb-image0 \
+        libxcb-keysyms1 \
+        libxcb-randr0 \
+        libxcb-render-util0 \
+        xvfb \
+        x11vnc \
+        fluxbox \
+        websockify \
+        novnc \
+        fonts-liberation \
+        fonts-noto \
+    && rm -rf /var/lib/apt/lists/*
+
+# Ubuntu 24.04's system Python is externally managed (PEP 668), so install
+# into a venv and put it first on PATH: `python` and `pip` then mean the venv.
+RUN python3 -m venv /opt/venv
+ENV PATH=/opt/venv/bin:$PATH
+
+# GPU PaddlePaddle 3.x (CUDA 12.6, same build as Dockerfile.web), then the rest
+# of requirements.txt minus its CPU `paddlepaddle` line: both wheels install
+# the same `paddle` package, and the second would overwrite the GPU build.
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir paddlepaddle-gpu==3.3.1 \
+        -i https://www.paddlepaddle.org.cn/packages/stable/cu126/ \
+ && grep -iv '^paddlepaddle' /tmp/requirements.txt > /tmp/requirements-gpu.txt \
+ && pip install --no-cache-dir -r /tmp/requirements-gpu.txt
+
+COPY . /app
+
+RUN mkdir -p /app/workspaces /app/models /app/data /app/logs /app/config \
+ && chmod +x /app/docker/entrypoint.sh
+
+EXPOSE 6080
+VOLUME ["/app/workspaces", "/app/models", "/app/config", "/app/data"]
+
+ENV MODE=gui \
+    QT_QPA_PLATFORM=xcb \
+    DISPLAY=:99 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+ENTRYPOINT ["/app/docker/entrypoint.sh"]

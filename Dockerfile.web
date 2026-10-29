@@ -114,3 +114,62 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)" || exit 1
 
 CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+
+# ── 4. Python web runtime (GPU / CUDA 12.6) — candidate replacement for 3. ────
+# Build with: GPU_TARGET=runtime-web-gpu-cu126 docker compose \
+#   -f docker-compose.web.yml -f docker-compose.web.gpu.yml up --build
+#
+# Ubuntu 24.04 ships Python 3.12, the same as the CPU image, so this stage
+# retires the 3.10 that stage 3 is stuck on. Needs a host driver new enough
+# for CUDA 12.6. Kept beside stage 3 until it has run OCR on a real GPU (see
+# docs/MAINTENANCE.md); then it takes over the runtime-web-gpu name.
+FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 AS runtime-web-gpu-cu126
+WORKDIR /app
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-venv \
+        libgl1 \
+        libglib2.0-0 \
+        libgomp1 \
+        fonts-noto \
+    && rm -rf /var/lib/apt/lists/*
+
+# Ubuntu 24.04's system Python is externally managed (PEP 668), so install
+# into a venv and put it first on PATH: `python` and `pip` then mean the venv.
+RUN python3 -m venv /opt/venv
+ENV PATH=/opt/venv/bin:$PATH
+
+COPY requirements-server.txt ./
+# GPU PaddlePaddle 3.x (CUDA 12.6) + the same runtime deps as the CPU image.
+RUN pip install --no-cache-dir paddlepaddle-gpu==3.3.1 \
+        -i https://www.paddlepaddle.org.cn/packages/stable/cu126/ \
+ && pip install --no-cache-dir \
+        "paddleocr>=3.0.0,<4" \
+        "opencv-contrib-python>=4.8.0,<6" \
+        "Pillow>=10.0.0,<13" \
+        "PyYAML>=6.0.0,<7" \
+ && pip install --no-cache-dir -r requirements-server.txt
+
+COPY modules/ ./modules/
+COPY server/ ./server/
+COPY config/ ./config/
+# Same capability-probe check as the CPU stage.
+RUN PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True python -c "from modules.core.ocr.compat import capability_source; s = capability_source(); print('PP-OCR capabilities:', s); assert s.startswith('paddleocr'), s"
+COPY --from=frontend /frontend/dist ./server/static
+
+RUN mkdir -p /app/workspaces /app/models /app/data /app/output_det /app/output_rec
+
+EXPOSE 8000
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    OCR_PROFILE=gpu
+
+VOLUME ["/app/workspaces", "/app/models", "/app/data"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)" || exit 1
+
+CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]

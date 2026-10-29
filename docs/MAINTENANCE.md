@@ -3,7 +3,7 @@
 โปรเจกต์นี้อยู่ในช่วงดูแล: เข้ามาเป็นรอบๆ เพื่อแก้บั๊กและตามเทคโนโลยีที่ใช้ให้ทัน ไม่มีระบบ
 ticket ไฟล์นี้ใช้บันทึกสถานะแทน และอัปเดตทุกครั้งที่ปิดรอบ
 
-**อัปเดตล่าสุด:** 2026-10-15 · ปิดรอบแล้ว · ไม่มี PR ค้าง
+**อัปเดตล่าสุด:** 2026-10-29 · รอ merge #20
 
 ## ตอนนี้
 
@@ -30,7 +30,7 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 1. **image GPU ยังเป็น Python 3.10 บน CUDA 11.8** (stage GPU ใน `Dockerfile` และ `Dockerfile.web`)
    ไม่มี image CUDA 11.8 สำหรับ Ubuntu 24.04 จึงต้องย้ายไป CUDA 12 พร้อม Python 3.12
    และต้องทดสอบบนเครื่องที่มี GPU Python 3.10 หมดอายุ 2026-10-31 แต่ Ubuntu 22.04 ยัง
-   patch ให้ถึง 2027-04 (2026-10-15: ยังไม่ได้ย้าย รอเครื่อง GPU สำหรับทดสอบ)
+   patch ให้ถึง 2027-04 (2026-10-29: ยังไม่ได้ย้าย รอเครื่อง GPU สำหรับทดสอบ)
 2. **Dependabot ยังไม่ดูแล Docker base image** เพราะตอนนี้ PR ที่มันจะเปิด (`python:3.14-slim`)
    build ไม่ได้: paddlepaddle 3.3.1 ยังไม่มี wheel สำหรับ Python 3.14 เปิดเมื่อ paddlepaddle
    รองรับแล้ว (รายละเอียดอยู่ใน `.github/dependabot.yml`) ณ 2026-10-15 รุ่นล่าสุดบน PyPI
@@ -50,6 +50,15 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 6. **เปิดหน้าจอจริง:** Settings (เลือกรุ่นกับภาษา), canvas และ export
 
 ## ประวัติรอบดูแล
+
+### 2026-10-29
+
+| PR | สิ่งที่ทำ |
+|---|---|
+| [#19](https://github.com/BlackHand133/ocrstudio/pull/19) | vite 8.3.4 แก้ช่องโหว่ของ vite และ `launch-editor` (high) ที่ `npm audit` เจอ ใช้ตอน dev/build เท่านั้น |
+| [#20](https://github.com/BlackHand133/ocrstudio/pull/20) | (รอ merge) vitest / `@vitest/mocker` 5.0.5 แก้ GHSA-qxg6-89mg-rqv8 และ GHSA-xp26-3454-mjgp (moderate) ใช้ตอน test เท่านั้น |
+
+ปิด [#18](https://github.com/BlackHand133/ocrstudio/pull/18) เพราะซ้ำกับ #17 ที่ merge ไปแล้ว
 
 ### 2026-10-15
 

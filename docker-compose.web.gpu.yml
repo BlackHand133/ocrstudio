@@ -3,13 +3,18 @@
 #   docker compose -f docker-compose.web.yml -f docker-compose.web.gpu.yml up --build
 #   open http://localhost:8000
 #
+# CUDA 12.6 / Python 3.12 candidate (needs a newer host driver):
+#
+#   GPU_TARGET=runtime-web-gpu-cu126 docker compose \
+#     -f docker-compose.web.yml -f docker-compose.web.gpu.yml up --build
+#
 # Requires the NVIDIA Container Toolkit on the host.
 
 services:
   web:
     build:
-      target: runtime-web-gpu
-    image: ocrstudio-web-gpu:latest
+      target: ${GPU_TARGET:-runtime-web-gpu}
+    image: ocrstudio-web-gpu:${GPU_TARGET:-latest}
     environment:
       OCR_PROFILE: gpu
     shm_size: "2g"

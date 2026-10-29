@@ -14,7 +14,7 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 | ช่องโหว่ที่รู้ | 0 (`npm audit` และ Dependabot alerts) |
 | Dependabot | alerts, security updates และ version updates รายเดือน (`.github/dependabot.yml`) |
 
-### เวอร์ชันที่ใช้ (ณ 2026-09-23)
+### เวอร์ชันที่ใช้ (ณ 2026-10-29)
 
 | ส่วน | เวอร์ชัน | หมายเหตุ |
 |---|---|---|
@@ -23,7 +23,8 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 | PaddlePaddle GPU | 3.3.1 (cu118) | ตรงกับ CPU ตั้งแต่ 2026-10-29 (ก่อนหน้านั้น 3.1.1) |
 | Node | 24 (LTS) | หมดอายุ 2028-04 |
 | PaddlePaddle / PaddleOCR | 3.3.1 / 3.7.0 | ล็อก `<4` เพราะ 2→3 เปลี่ยน API ที่ `detector.py` ใช้ |
-| numpy / OpenCV / Pillow / Shapely | 2.3 / 5.0 / 12.3 / 2.1 | ล็อกที่ major ถัดไป เพื่อให้รุ่นใหญ่มาเป็น PR |
+| numpy / Pillow / Shapely | 2.3 / 12.3 / 2.2 | ล็อกที่ major ถัดไป เพื่อให้รุ่นใหญ่มาเป็น PR |
+| OpenCV | 4.10 (`opencv-contrib-python`) | paddlex ล็อกรุ่นนี้ตายตัว จึงใช้ตัวนี้ตัวเดียว ห้ามเพิ่ม `opencv-python` / `-headless` ใน image (ดู `requirements.txt`) |
 | React / Vite / TypeScript | 19.3 / 8.3 / 7.0 | |
 | Mantine | 9.6 | ตั้งค่าให้หน้าตาเหมือนเดิม (`frontend/src/theme.ts`, `frontend/src/main.tsx`) |
 
@@ -62,13 +63,10 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 |---|---|
 | [#19](https://github.com/BlackHand133/ocrstudio/pull/19) | vite 8.3.4 แก้ช่องโหว่ของ vite และ `launch-editor` (high) ที่ `npm audit` เจอ ใช้ตอน dev/build เท่านั้น |
 | [#20](https://github.com/BlackHand133/ocrstudio/pull/20) | vitest / `@vitest/mocker` 5.0.5 แก้ GHSA-qxg6-89mg-rqv8 และ GHSA-xp26-3454-mjgp (moderate) ใช้ตอน test เท่านั้น |
+| [#21](https://github.com/BlackHand133/ocrstudio/pull/21) | `gpu-images.yml` build image GPU ทั้งสองตัว (ก่อนหน้านี้ไม่มีอะไร build เลย), `paddlepaddle-gpu` 3.1.1 → 3.3.1 ให้ตรงกับ CPU และแก้ image GPU ของ desktop ที่ไม่เคย build ได้แบบไม่มีคนเฝ้า (`tzdata` ถามเขตเวลาแล้วรอไม่จบ แก้ด้วย `ARG DEBIAN_FRONTEND=noninteractive`) |
+| (PR นี้) | OpenCV เหลือ `opencv-contrib-python` ตัวเดียว: ทุก image ลง `opencv-python` 5.0 (หรือ `-headless`) คู่กับ `opencv-contrib-python` 4.10 ที่ paddlex ล็อกไว้ ทั้งสองลงที่ `cv2/` เดียวกัน `cv2` ที่ใช้จริงจึงเป็น 4.10 มาตลอด ส่วน 5.0 เป็นของเปล่า และถ้าถอนตัวใดตัวหนึ่ง `cv2` จะพัง test ล็อก headless `<5` ให้ตรงกับที่ใช้จริง |
 
 ปิด [#18](https://github.com/BlackHand133/ocrstudio/pull/18) เพราะซ้ำกับ #17 ที่ merge ไปแล้ว
-
-เพิ่ม `gpu-images.yml` ให้ build image GPU ทั้งสองตัว (ก่อนหน้านี้ไม่มีอะไร build เลย) และขยับ
-`paddlepaddle-gpu` จาก 3.1.1 เป็น 3.3.1 ให้ตรงกับ image CPU การ build ครั้งแรกเจอว่า image GPU
-ของ desktop ไม่เคย build ได้แบบไม่มีคนเฝ้า: `tzdata` ถามเขตเวลาแล้วรอคำตอบไม่จบ แก้ด้วย
-`ARG DEBIAN_FRONTEND=noninteractive`
 
 ### 2026-10-15
 

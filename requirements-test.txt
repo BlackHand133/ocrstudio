@@ -18,8 +18,10 @@ starlette>=1.2
 
 # Core libraries used by the headless import chain
 # (image_service thumbnails, export crop/mask utils, validation, augmentation).
-# Upper bounds: see requirements.txt.
-opencv-python-headless>=4.8.0,<6
+# Upper bounds: see requirements.txt. No paddle here, so headless OpenCV is
+# enough, but capped below 5 to test against the 4.x that the images actually
+# run (paddlex pins opencv-contrib-python==4.10.0.84).
+opencv-python-headless>=4.8.0,<5
 Pillow>=10.0.0,<13
 numpy>=1.24.0,<3.0.0
 PyYAML>=6.0.0,<7

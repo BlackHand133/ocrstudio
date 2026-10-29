@@ -42,6 +42,10 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: paddleocr
         update-types: ["version-update:semver-major"]
+      # requirements-test.txt caps this below 5 to match the opencv-contrib-python
+      # 4.x that paddlex pins in the images; raise it when paddlex does.
+      - dependency-name: opencv-python-headless
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "build(deps)"
 

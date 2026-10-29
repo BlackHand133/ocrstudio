@@ -8,7 +8,11 @@ paddleocr>=3.0.0,<4
 # The next major of each library below may change APIs this app calls. Capping
 # it makes that major arrive as a Dependabot PR that CI tests, instead of
 # silently at build time, which is how OpenCV 5 came in.
-opencv-python>=4.8.0,<6
+# OpenCV comes as opencv-contrib-python because paddleocr -> paddlex[ocr-core]
+# pins opencv-contrib-python==4.10.0.84. A second OpenCV package (opencv-python,
+# -headless) would install into the same cv2/ directory: whichever pip
+# installs last wins, and removing either one breaks cv2 for both.
+opencv-contrib-python>=4.8.0,<6
 Pillow>=10.0.0,<13
 numpy>=1.24.0,<3.0.0
 PyYAML>=6.0.0,<7

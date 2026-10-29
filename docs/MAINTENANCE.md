@@ -3,7 +3,7 @@
 โปรเจกต์นี้อยู่ในช่วงดูแล: เข้ามาเป็นรอบๆ เพื่อแก้บั๊กและตามเทคโนโลยีที่ใช้ให้ทัน ไม่มีระบบ
 ticket ไฟล์นี้ใช้บันทึกสถานะแทน และอัปเดตทุกครั้งที่ปิดรอบ
 
-**อัปเดตล่าสุด:** 2026-10-29 · รอ merge #20
+**อัปเดตล่าสุด:** 2026-10-29 · ปิดรอบแล้ว · ไม่มี PR ค้าง
 
 ## ตอนนี้
 
@@ -56,7 +56,7 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 | PR | สิ่งที่ทำ |
 |---|---|
 | [#19](https://github.com/BlackHand133/ocrstudio/pull/19) | vite 8.3.4 แก้ช่องโหว่ของ vite และ `launch-editor` (high) ที่ `npm audit` เจอ ใช้ตอน dev/build เท่านั้น |
-| [#20](https://github.com/BlackHand133/ocrstudio/pull/20) | (รอ merge) vitest / `@vitest/mocker` 5.0.5 แก้ GHSA-qxg6-89mg-rqv8 และ GHSA-xp26-3454-mjgp (moderate) ใช้ตอน test เท่านั้น |
+| [#20](https://github.com/BlackHand133/ocrstudio/pull/20) | vitest / `@vitest/mocker` 5.0.5 แก้ GHSA-qxg6-89mg-rqv8 และ GHSA-xp26-3454-mjgp (moderate) ใช้ตอน test เท่านั้น |
 
 ปิด [#18](https://github.com/BlackHand133/ocrstudio/pull/18) เพราะซ้ำกับ #17 ที่ merge ไปแล้ว
 

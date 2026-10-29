@@ -10,6 +10,7 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 | เรื่อง | สถานะ |
 |---|---|
 | CI บน `main` | ผ่าน 7/7: lint, unit test (Python 3.10 และ 3.12), API test, frontend, Docker image web + desktop |
+| image GPU (web + desktop) | build อย่างเดียว ไม่มี GPU ให้รัน (`.github/workflows/gpu-images.yml`) เมื่อไฟล์ที่ใช้ build เปลี่ยน, ทุกวันจันทร์ และกดรันเองได้ |
 | ช่องโหว่ที่รู้ | 0 (`npm audit` และ Dependabot alerts) |
 | Dependabot | alerts, security updates และ version updates รายเดือน (`.github/dependabot.yml`) |
 
@@ -18,7 +19,8 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 | ส่วน | เวอร์ชัน | หมายเหตุ |
 |---|---|---|
 | Python ใน image CPU | 3.12 | หมดอายุ 2028-10 |
-| Python ใน image GPU | 3.10 | หมดอายุ 2026-10-31 ดูงานค้างข้อ 1 |
+| Python ใน image GPU | 3.10 | จาก apt ของ Ubuntu 22.04 ได้ patch ถึง 2027-04 ดูงานค้างข้อ 1 |
+| PaddlePaddle GPU | 3.3.1 (cu118) | ตรงกับ CPU ตั้งแต่ 2026-10-29 (ก่อนหน้านั้น 3.1.1) |
 | Node | 24 (LTS) | หมดอายุ 2028-04 |
 | PaddlePaddle / PaddleOCR | 3.3.1 / 3.7.0 | ล็อก `<4` เพราะ 2→3 เปลี่ยน API ที่ `detector.py` ใช้ |
 | numpy / OpenCV / Pillow / Shapely | 2.3 / 5.0 / 12.3 / 2.1 | ล็อกที่ major ถัดไป เพื่อให้รุ่นใหญ่มาเป็น PR |
@@ -29,8 +31,11 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 
 1. **image GPU ยังเป็น Python 3.10 บน CUDA 11.8** (stage GPU ใน `Dockerfile` และ `Dockerfile.web`)
    ไม่มี image CUDA 11.8 สำหรับ Ubuntu 24.04 จึงต้องย้ายไป CUDA 12 พร้อม Python 3.12
-   และต้องทดสอบบนเครื่องที่มี GPU Python 3.10 หมดอายุ 2026-10-31 แต่ Ubuntu 22.04 ยัง
-   patch ให้ถึง 2027-04 (2026-10-29: ยังไม่ได้ย้าย รอเครื่อง GPU สำหรับทดสอบ)
+   และต้องทดสอบบนเครื่องที่มี GPU python.org เลิกดูแล 3.10 วันที่ 2026-10-31 แต่ image ใช้
+   `python3.10` จาก apt ซึ่ง Ubuntu 22.04 ยัง patch ให้ถึง 2027-04 **เส้นตายจริงคือ 2027-04**
+   แผน: base `nvidia/cuda:12.x-cudnn-runtime-ubuntu24.04` (Python 3.12) + index paddle `cu126`
+   และเก็บ stage cu118 ไว้อีกหนึ่งรอบสำหรับ host ที่ driver เก่า ตอนนี้ build ตรวจใน CI ได้แล้ว
+   (`gpu-images.yml`) เหลือรันบน GPU จริงหนึ่งครั้ง (2026-10-29: ยังไม่ได้ย้าย รอเครื่อง GPU)
 2. **Dependabot ยังไม่ดูแล Docker base image** เพราะตอนนี้ PR ที่มันจะเปิด (`python:3.14-slim`)
    build ไม่ได้: paddlepaddle 3.3.1 ยังไม่มี wheel สำหรับ Python 3.14 เปิดเมื่อ paddlepaddle
    รองรับแล้ว (รายละเอียดอยู่ใน `.github/dependabot.yml`) ณ 2026-10-15 รุ่นล่าสุดบน PyPI
@@ -59,6 +64,9 @@ ticket ไฟล์นี้ใช้บันทึกสถานะแทน 
 | [#20](https://github.com/BlackHand133/ocrstudio/pull/20) | vitest / `@vitest/mocker` 5.0.5 แก้ GHSA-qxg6-89mg-rqv8 และ GHSA-xp26-3454-mjgp (moderate) ใช้ตอน test เท่านั้น |
 
 ปิด [#18](https://github.com/BlackHand133/ocrstudio/pull/18) เพราะซ้ำกับ #17 ที่ merge ไปแล้ว
+
+เพิ่ม `gpu-images.yml` ให้ build image GPU ทั้งสองตัว (ก่อนหน้านี้ไม่มีอะไร build เลย) และขยับ
+`paddlepaddle-gpu` จาก 3.1.1 เป็น 3.3.1 ให้ตรงกับ image CPU
 
 ### 2026-10-15
 

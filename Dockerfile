@@ -138,7 +138,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # the same `paddle` package, and the second would overwrite the GPU build.
 # Python stays on Ubuntu 22.04's 3.10; see the note in Dockerfile.web.
 COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir paddlepaddle-gpu==3.1.1 \
+RUN pip install --no-cache-dir paddlepaddle-gpu==3.3.1 \
         -i https://www.paddlepaddle.org.cn/packages/stable/cu118/ \
  && grep -iv '^paddlepaddle' /tmp/requirements.txt > /tmp/requirements-gpu.txt \
  && pip install --no-cache-dir -r /tmp/requirements-gpu.txt
